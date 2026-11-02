@@ -1,0 +1,201 @@
+import { describe, expect, it } from "vitest";
+import { calculerSuivi, construireRecap, resumerCycle, totauxParCellule, trierSuivi, type EcheanceSuivie } from "@/lib/suivi/cycle";
+
+const echeance = new Date("2026-11-05T00:00:00.000Z");
+const avant = new Date("2026-11-01T00:00:00.000Z");
+const apres = new Date("2026-11-06T00:00:00.000Z");
+const espaces = (t: string) => t.replace(/[  ]/g, " ");
+
+const E = (nom: string, ordre: number | null, paye: number, autres: Partial<EcheanceSuivie> = {}): EcheanceSuivie => ({
+  membreId: nom,
+  personneId: nom,
+  nom,
+  ordre,
+  membreActif: true,
+  numeros: [],
+  montantDu: 10_000,
+  paye,
+  arriere: 0,
+  ...autres,
+});
+
+// Situation du seed (tontine mensuelle) en miniature : un payé, un en trop, un rien, un partiel.
+const echeances = [
+  E("Moussa Sarr", 1, 10_000),
+  E("Aminata Ndiaye", 2, 10_000),
+  E("Fatou Kane", 3, 0, { arriere: 2_000 }),
+  E("Ibrahima Ba", 4, 4_000),
+  E("Coumba Retirée", 5, 3_000, { membreActif: false }),
+];
+
+describe("calculerSuivi : statuts justes", () => {
+  const s = calculerSuivi(echeances, echeance, avant);
+
+  it("statut de chaque membre : payé, en attente, partiel", () => {
+    expect(s.actifs.map((l) => [l.nom, l.statut, l.reste])).toEqual([
+      ["Moussa Sarr", "PAYE", 0],
+      ["Aminata Ndiaye", "PAYE", 0],
+      ["Fatou Kane", "EN_ATTENTE", 10_000],
+      ["Ibrahima Ba", "PARTIEL", 6_000],
+    ]);
+  });
+
+  it("membres retirés à part, mais comptés dans les totaux du cycle", () => {
+    expect(s.retires.map((l) => l.nom)).toEqual(["Coumba Retirée"]);
+    expect(s.totaux).toEqual({ attendu: 50_000, recu: 27_000, reste: 23_000, payes: 2, partiels: 2, enAttente: 1, membres: 5 });
+  });
+
+  it("arriérés : à part, jamais dans les totaux du cycle", () => {
+    expect(s.totalArrieres).toBe(2_000);
+    expect(s.totaux.attendu).toBe(50_000);
+  });
+
+  it("le reçu ne compte pas au-delà du dû (l'excédent est à rembourser, ailleurs)", () => {
+    expect(calculerSuivi([E("Trop", 1, 12_000)], echeance, avant).totaux.recu).toBe(10_000);
+  });
+
+  it("« en retard » seulement après l'échéance, et jamais pour qui est à jour", () => {
+    expect(calculerSuivi(echeances, echeance, avant).actifs.some((l) => l.enRetard)).toBe(false);
+    expect(calculerSuivi(echeances, echeance, apres).actifs.filter((l) => l.enRetard).map((l) => l.nom)).toEqual(["Fatou Kane", "Ibrahima Ba"]);
+  });
+});
+
+describe("trierSuivi", () => {
+  const { actifs } = calculerSuivi([...echeances, E("Sans Ordre", null, 0)], echeance, avant);
+  const noms = (critere: Parameters<typeof trierSuivi>[1]) => trierSuivi(actifs, critere).map((l) => l.nom);
+
+  it("par ordre de passage, sans ordre en dernier", () => {
+    expect(noms("ordre")).toEqual(["Moussa Sarr", "Aminata Ndiaye", "Fatou Kane", "Ibrahima Ba", "Sans Ordre"]);
+  });
+  it("par statut : rien versé, puis partiel, puis payé", () => {
+    expect(noms("statut")).toEqual(["Fatou Kane", "Sans Ordre", "Ibrahima Ba", "Moussa Sarr", "Aminata Ndiaye"]);
+  });
+  it("par reste dû, du plus grand au plus petit", () => {
+    expect(noms("reste").slice(0, 3)).toEqual(["Fatou Kane", "Sans Ordre", "Ibrahima Ba"]);
+  });
+  it("par nom (ordre alphabétique français)", () => {
+    expect(noms("nom")[0]).toBe("Aminata Ndiaye");
+  });
+  it("par versé, du plus grand au plus petit", () => {
+    const tries = trierSuivi(actifs, "verse");
+    expect(tries.map((l) => l.paye)).toEqual([...actifs.map((l) => l.paye)].sort((a, b) => b - a));
+  });
+  it("par cellule : sans cellule en dernier, puis par nom", () => {
+    const avecCellules = actifs.map((l, i) => ({ ...l, cellule: i % 2 === 0 ? null : i === 1 ? "Technique" : "Organisation" }));
+    const tries = trierSuivi(avecCellules, "cellule");
+    expect(tries.map((l) => l.cellule)).toEqual(["Organisation", "Technique", null, null, null]);
+    expect(tries.slice(2).map((l) => l.nom)).toEqual([...tries.slice(2).map((l) => l.nom)].sort((a, b) => a.localeCompare(b, "fr")));
+  });
+});
+
+describe("construireRecap", () => {
+  const s = calculerSuivi(echeances, echeance, avant);
+  const contexte = { caisse: "Tontine mensuelle des amies", cycle: 1, dateEcheance: echeance };
+
+  it("détaillé : nombre à jour + qui doit encore combien (retirés compris)", () => {
+    expect(espaces(construireRecap(s, contexte, "detaille"))).toBe(
+      [
+        "Tontine mensuelle des amies, cycle 1 (échéance le 5 novembre 2026)",
+        "À jour : 2 sur 5",
+        "",
+        "Reste à verser :",
+        "- Fatou Kane : 10 000 FCFA",
+        "- Ibrahima Ba : 6 000 FCFA",
+        "- Coumba Retirée : 7 000 FCFA",
+      ].join("\n"),
+    );
+  });
+
+  it("totaux seulement : aucun nom", () => {
+    const texte = espaces(construireRecap(s, contexte, "totaux"));
+    expect(texte).toBe(
+      [
+        "Tontine mensuelle des amies, cycle 1 (échéance le 5 novembre 2026)",
+        "À jour : 2 sur 5",
+        "Partiels : 2, rien versé : 1",
+        "Reçu : 27 000 FCFA sur 50 000 FCFA (reste 23 000 FCFA)",
+      ].join("\n"),
+    );
+    expect(texte).not.toContain("Fatou");
+  });
+
+  it("détaillé, tout le monde à jour", () => {
+    const tousPayes = calculerSuivi([E("A", 1, 10_000), E("B", 2, 10_000)], echeance, avant);
+    expect(construireRecap(tousPayes, contexte, "detaille")).toContain("Tout le monde est à jour");
+  });
+});
+
+describe("resumerCycle (tableau de bord)", () => {
+  const lignes = [
+    { montantDu: 10_000, paye: 10_000 },
+    { montantDu: 10_000, paye: 15_000 }, // trop-perçu : compte 10 000 dans le reçu
+    { montantDu: 10_000, paye: 4_000 },
+    { montantDu: 10_000, paye: 0 },
+  ];
+
+  it("reçu plafonné à l'attendu, membres pas à jour", () => {
+    expect(resumerCycle(lignes, echeance, avant)).toEqual({ attendu: 40_000, recu: 24_000, pasAJour: 2, echeancePassee: false });
+  });
+
+  it("échéance passée seulement après le jour de l'échéance", () => {
+    expect(resumerCycle(lignes, echeance, echeance).echeancePassee).toBe(false);
+    expect(resumerCycle(lignes, echeance, apres).echeancePassee).toBe(true);
+  });
+
+  it("cycle sans échéance", () => {
+    expect(resumerCycle([], echeance, avant)).toEqual({ attendu: 0, recu: 0, pasAJour: 0, echeancePassee: false });
+  });
+});
+
+describe("par cellule (phase 10)", () => {
+  const avecCellules = calculerSuivi(
+    [
+      E("Awa", null, 2_000, { montantDu: 2_000, cellule: "Technique" }),
+      E("Binta", null, 0, { montantDu: 2_000, cellule: "Organisation" }),
+      E("Coumba", null, 3_000, { montantDu: 2_000, cellule: "Organisation" }), // trop-perçu
+      E("Dior", null, 500, { montantDu: 2_000, cellule: "Technique" }),
+      E("Elle", null, 0, { montantDu: 2_000 }),
+    ],
+    echeance,
+    avant,
+  );
+  const contexte = { caisse: "Séminaire", cycle: 1, dateEcheance: echeance };
+
+  it("totaux par cellule, « Sans cellule » en dernier, trop-perçu plafonné", () => {
+    expect(totauxParCellule(avecCellules)).toEqual([
+      { cellule: "Organisation", membres: 2, payes: 1, attendu: 4_000, recu: 2_000 },
+      { cellule: "Technique", membres: 2, payes: 1, attendu: 4_000, recu: 2_500 },
+      { cellule: "Sans cellule", membres: 1, payes: 0, attendu: 2_000, recu: 0 },
+    ]);
+  });
+
+  it("aucune cellule renseignée : pas de totaux par cellule", () => {
+    expect(totauxParCellule(calculerSuivi([E("A", 1, 0)], echeance, avant))).toEqual([]);
+  });
+
+  it("récap détaillé regroupé par cellule", () => {
+    expect(espaces(construireRecap(avecCellules, contexte, "detaille"))).toBe(
+      [
+        "Séminaire, cycle 1 (échéance le 5 novembre 2026)",
+        "À jour : 2 sur 5",
+        "",
+        "Reste à verser :",
+        "",
+        "Organisation (1)",
+        "- Binta : 2 000 FCFA",
+        "",
+        "Technique (1)",
+        "- Dior : 1 500 FCFA",
+        "",
+        "Sans cellule (1)",
+        "- Elle : 2 000 FCFA",
+      ].join("\n"),
+    );
+  });
+
+  it("récap des totaux : une ligne par cellule", () => {
+    expect(espaces(construireRecap(avecCellules, contexte, "totaux"))).toContain(
+      ["Organisation : 1 à jour sur 2", "Technique : 1 à jour sur 2", "Sans cellule : 0 à jour sur 1"].join("\n"),
+    );
+  });
+});

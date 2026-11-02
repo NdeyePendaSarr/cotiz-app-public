@@ -1,0 +1,228 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-paye: var(--paye);
+  --color-partiel: var(--partiel);
+  --color-avertissement: var(--avertissement);
+  --color-attente: var(--attente);
+  --color-graph-wave: var(--graph-wave);
+  --color-graph-om: var(--graph-om);
+  --color-graph-cash: var(--graph-cash);
+  --color-graph-sortie: var(--graph-sortie);
+  --color-anneau-paye: var(--anneau-paye);
+  --color-anneau-partiel: var(--anneau-partiel);
+  --color-anneau-attente: var(--anneau-attente);
+  --color-retard: var(--retard);
+  --color-nuit: var(--nuit);
+  --color-nuit-doux: var(--nuit-doux);
+  --color-or: var(--or);
+  --color-or-foreground: var(--or-foreground);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sora);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  /* Trois arrondis seulement (lot 2) : 8 px pastilles, 14 px boutons et champs, 24 px blocs et bandeaux. */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.875rem;
+  --radius-xl: 0.875rem;
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 1.5rem;
+  --radius-4xl: 1.5rem;
+}
+
+/* Texte de 13 px minimum (identité, lot 1) : les petites lignes grises restent lisibles au soleil. */
+@theme {
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: calc(1.125 / 0.8125);
+}
+
+/*
+ * Charte Cotiz (identité, lot 1) : teal nuit pour la structure (bandeaux, barres), teal pour les
+ * liens et la sélection, or réservé à l'action principale et à l'argent reçu, fond sable chaud.
+ * Statuts (payé, partiel, en attente) distincts de l'« avertissement » (à rembourser, alertes) :
+ * ils diffèrent aussi en clarté, pas seulement en teinte.
+ */
+:root {
+  --background: #f5f0e6;
+  --foreground: #17201f;
+  --card: #fffdf8;
+  --card-foreground: #17201f;
+  --popover: #fffdf8;
+  --popover-foreground: #17201f;
+  --primary: #0f5e59;
+  --primary-foreground: #fffdf8;
+  --secondary: #dcebe7;
+  --secondary-foreground: #0b3b39;
+  --muted: #efe8da;
+  --muted-foreground: #5a6563;
+  --accent: #dcebe7;
+  --accent-foreground: #0b3b39;
+  --destructive: #b9412b;
+  --border: #e6ded0;
+  /* Bordure des champs : 3,7:1 sur les cartes, 3,3:1 sur le sable (WCAG 1.4.11, audit lot 3). */
+  --input: #8f836c;
+  --ring: #0f5e59;
+  --chart-1: #0f5e59;
+  --chart-2: #e2a93b;
+  --chart-3: #6fb8a6;
+  --chart-4: #3561a8;
+  --chart-5: #8d9a97;
+  /* Bandeaux et barres : teal nuit, et son texte secondaire (contraste 9 : 1). */
+  --nuit: #0b3b39;
+  --nuit-doux: #cfe3de;
+  /* Or : bouton « Paiement », progression de l'argent reçu. Texte sombre dessus. */
+  --or: #e2a93b;
+  --or-foreground: #1d1a10;
+  /* Statuts d'une échéance */
+  --paye: #1e7f5c;
+  --partiel: #3561a8;
+  --attente: #6b604c;
+  --retard: #b9412b;
+  --avertissement: #a15c07;
+  /* Graphiques (lot 3) : canaux dans un ordre fixe, palette validée (daltonisme, contraste)
+     sur la surface des cartes ; l'or a un contraste faible, d'où les valeurs toujours écrites. */
+  --graph-wave: #00897a;
+  --graph-om: #e2a93b;
+  --graph-cash: #7a62c2;
+  --graph-sortie: #c4486a;
+  /* Anneau des statuts, posé sur le bandeau teal nuit (mêmes valeurs en mode sombre). */
+  --anneau-paye: #5cc29a;
+  --anneau-partiel: #8fb3ea;
+  --anneau-attente: #e8dfcf;
+  --radius: 1rem;
+  --sidebar: #fffdf8;
+  --sidebar-foreground: #17201f;
+  --sidebar-primary: #0f5e59;
+  --sidebar-primary-foreground: #fffdf8;
+  --sidebar-accent: #dcebe7;
+  --sidebar-accent-foreground: #0b3b39;
+  --sidebar-border: #e6ded0;
+  --sidebar-ring: #0f5e59;
+}
+
+/* Mode sombre : surfaces vert très foncé, même or ; teal et statuts éclaircis pour rester lisibles. */
+.dark {
+  --background: #0c1718;
+  --foreground: #e8eeec;
+  --card: #132425;
+  --card-foreground: #e8eeec;
+  --popover: #132425;
+  --popover-foreground: #e8eeec;
+  --primary: #12706a;
+  --primary-foreground: #ffffff;
+  /* Teal clair pour le texte « text-primary » posé sur fond sombre (règle plus bas). */
+  --primary-texte: #7fc4ae;
+  --secondary: #1a3537;
+  --secondary-foreground: #b5ddd2;
+  --muted: #172c2d;
+  --muted-foreground: #9ab0ad;
+  --accent: #1a3537;
+  --accent-foreground: #b5ddd2;
+  --destructive: #f0705f;
+  --border: #243a3b;
+  --input: #5f7a7c;
+  --ring: #7fc4ae;
+  --chart-1: #7fc4ae;
+  --chart-2: #e2a93b;
+  --chart-3: #3f9a8b;
+  --chart-4: #8fb3ea;
+  --chart-5: #e8eeec;
+  --nuit: #0e3533;
+  --nuit-doux: #cfe3de;
+  --or: #e2a93b;
+  --or-foreground: #1d1a10;
+  --paye: #3fcf94;
+  --partiel: #8fb3ea;
+  --attente: #b8ad98;
+  --retard: #ff7b6c;
+  --avertissement: #f2a845;
+  /* Mêmes teintes, pas propres au mode sombre (validés sur la surface #132425). */
+  --graph-wave: #1fa392;
+  --graph-om: #b8861f;
+  --graph-cash: #9682e0;
+  --graph-sortie: #d9607a;
+  --anneau-paye: #5cc29a;
+  --anneau-partiel: #8fb3ea;
+  --anneau-attente: #e8dfcf;
+  --sidebar: #132425;
+  --sidebar-foreground: #e8eeec;
+  --sidebar-primary: #12706a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1a3537;
+  --sidebar-accent-foreground: #b5ddd2;
+  --sidebar-border: #243a3b;
+  --sidebar-ring: #7fc4ae;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    /* Chiffres à largeur fixe : les colonnes de FCFA s'alignent. */
+    font-variant-numeric: tabular-nums;
+  }
+  h1,
+  h2 {
+    font-family: var(--font-heading);
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/*
+ * Version ordinateur : tableaux, listes et blocs occupent toute la largeur de la colonne
+ * (demande de la trésorière, 31/10/2026) ; seuls les formulaires de saisie gardent une largeur
+ * lisible. Un formulaire large (import) le demande avec data-pleine-largeur. Hors calque :
+ * l'emporte sur les utilitaires max-w-* des enfants directs.
+ */
+@media (width >= 64rem) {
+  .colonne-privee > form:not([data-pleine-largeur]) {
+    max-width: 48rem;
+  }
+}
+
+/*
+ * Mode sombre : le teal du texte (titres de section, liens, cellules) s'éclaircit, sauf sur les
+ * boutons et pastilles blancs (bg-primary-foreground), qui gardent le teal foncé.
+ */
+.dark .text-primary:not(.bg-primary-foreground) {
+  color: var(--primary-texte);
+}

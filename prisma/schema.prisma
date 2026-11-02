@@ -1,0 +1,362 @@
+// Schéma Prisma de Cotiz (v0). Référence : CAHIER_DES_CHARGES.md, section « Schéma Prisma ».
+// Prisma 7 : les URL de connexion sont dans prisma.config.ts, plus ici.
+
+generator client {
+  provider        = "prisma-client"
+  output          = "../lib/generated/prisma"
+  // Index partiels : « un seul cycle ouvert par caisse » (modèle Cycle).
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum TypeCaisse {
+  TONTINE
+  COLLECTE
+}
+
+enum Frequence {
+  HEBDOMADAIRE
+  BIMENSUELLE
+  MENSUELLE
+}
+
+enum StatutCaisse {
+  ACTIVE
+  ARCHIVEE
+}
+
+enum StatutMembre {
+  ACTIF
+  INACTIF
+}
+
+enum StatutCycle {
+  OUVERT
+  CLOTURE
+}
+
+enum Canal {
+  WAVE
+  ORANGE_MONEY
+  CASH
+}
+
+enum Source {
+  SMS_WAVE
+  SAISIE_MANUELLE
+}
+
+// Origine d'un paiement (audit, lot 2) : remplace les marqueurs écrits dans la note.
+enum OriginePaiement {
+  CAPTURE        // SMS collé ou saisie manuelle
+  REPRISE_IMPORT // colonne « Versé » d'une liste importée (le même argent, déjà reçu)
+}
+
+// Date d'un versé repris : celle de l'import tant qu'il n'est pas daté (exclu du graphique).
+enum DatationReprise {
+  NON_DATEE
+  PAR_SMS    // date et référence d'un paiement Wave / Orange Money (SMS, application)
+  A_LA_MAIN  // date saisie par la trésorière (espèces, sans SMS)
+}
+
+enum StatutPaiement {
+  A_RAPPROCHER
+  RAPPROCHE
+  IGNORE
+}
+
+// Catégorie d'une sortie de caisse (phase 11) : liste fixe pour des totaux propres.
+enum CategorieDepense {
+  NOURRITURE
+  TRANSPORT
+  MATERIEL
+  LOGEMENT
+  COMMUNICATION
+  AVANCE
+  AUTRE
+}
+
+enum StatutSmsNonLu {
+  A_TRAITER
+  TRAITE
+}
+
+model Utilisatrice {
+  id        String   @id @db.Uuid // = id Supabase Auth
+  email     String   @unique
+  nom       String   @db.VarChar(100)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  caisses   Caisse[]
+  personnes Personne[]
+  numeros   NumeroPersonne[]
+  paiements Paiement[]
+  journal   JournalAudit[]
+  smsNonLus SmsNonLu[]
+  depenses  Depense[]
+  dons      Don[]
+
+  @@map("utilisatrices")
+}
+
+model Caisse {
+  id                String       @id @default(uuid()) @db.Uuid
+  ownerId           String       @map("owner_id") @db.Uuid
+  nom               String       @db.VarChar(100)
+  montantCotisation Int          @map("montant_cotisation")
+  type              TypeCaisse   @default(TONTINE)
+  frequence         Frequence? // null pour une COLLECTE
+  dateLimite        DateTime?    @map("date_limite") @db.Date // COLLECTE
+  jourEcheance      Int?         @map("jour_echeance")
+  modeleRelance     String?      @map("modele_relance") // null = modèle par défaut du code
+  statut            StatutCaisse @default(ACTIVE)
+  createdAt         DateTime     @default(now()) @map("created_at")
+
+  owner    Utilisatrice   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  membres  MembreCaisse[]
+  cycles   Cycle[]
+  depenses Depense[]
+  dons     Don[]
+
+  @@index([ownerId])
+  @@map("caisses")
+}
+
+model Personne {
+  id         String   @id @default(uuid()) @db.Uuid
+  ownerId    String   @map("owner_id") @db.Uuid
+  nomComplet String   @map("nom_complet") @db.VarChar(150)
+  aliasWave  String[] @map("alias_wave")
+  /// Cellule de la commission (ex. « Organisation », « Technique ») : la même dans toutes ses caisses.
+  cellule    String?  @db.VarChar(50)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  owner     Utilisatrice     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  numeros   NumeroPersonne[]
+  membres   MembreCaisse[]
+  paiements Paiement[]
+
+  @@index([ownerId])
+  @@map("personnes")
+}
+
+model NumeroPersonne {
+  id         String  @id @default(uuid()) @db.Uuid
+  ownerId    String  @map("owner_id") @db.Uuid
+  personneId String  @map("personne_id") @db.Uuid
+  numero     String  @db.VarChar(9) // 9 chiffres, sans indicatif
+  libelle    String? @db.VarChar(50) // ex. "numéro du mari"
+
+  owner    Utilisatrice @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  personne Personne     @relation(fields: [personneId], references: [id], onDelete: Cascade)
+
+  @@unique([personneId, numero])
+  @@index([ownerId, numero]) // un numéro peut servir à 2 personnes
+  @@map("numeros_personne")
+}
+
+model MembreCaisse {
+  id           String       @id @default(uuid()) @db.Uuid
+  caisseId     String       @map("caisse_id") @db.Uuid
+  personneId   String       @map("personne_id") @db.Uuid
+  ordrePassage Int?         @map("ordre_passage")
+  statut       StatutMembre @default(ACTIF)
+  dateEntree   DateTime     @default(now()) @map("date_entree") @db.Date
+
+  caisse    Caisse     @relation(fields: [caisseId], references: [id], onDelete: Cascade)
+  personne  Personne   @relation(fields: [personneId], references: [id], onDelete: Cascade)
+  echeances Echeance[]
+
+  @@unique([caisseId, personneId])
+  @@index([personneId])
+  // Ordre de passage unique par caisse (tontines). NULL autorisé plusieurs fois (collectes).
+  @@unique([caisseId, ordrePassage])
+  @@map("membres_caisse")
+}
+
+model Cycle {
+  id             String      @id @default(uuid()) @db.Uuid
+  caisseId       String      @map("caisse_id") @db.Uuid
+  numero         Int
+  dateDebut      DateTime    @map("date_debut") @db.Date
+  dateEcheance   DateTime    @map("date_echeance") @db.Date
+  statut         StatutCycle @default(OUVERT)
+  dateCloture    DateTime?   @map("date_cloture")
+  beneficiaireId String?     @map("beneficiaire_id") @db.Uuid // MembreCaisse, utilisé en v1
+
+  caisse    Caisse     @relation(fields: [caisseId], references: [id], onDelete: Cascade)
+  echeances Echeance[]
+
+  @@unique([caisseId, numero])
+  // Un seul cycle OUVERT par caisse, garanti par la base.
+  @@unique([caisseId], map: "cycles_un_seul_ouvert", where: raw("statut = 'OUVERT'"))
+  @@map("cycles")
+}
+
+model Echeance {
+  id             String @id @default(uuid()) @db.Uuid
+  cycleId        String @map("cycle_id") @db.Uuid
+  membreCaisseId String @map("membre_caisse_id") @db.Uuid
+  montantDu      Int    @map("montant_du")
+
+  // Audit, lot 2 : supprimer un membre (ou sa personne) portant des échéances est refusé (NoAction) ;
+  // le cycle reste en cascade pour que la suppression d'un compte entier reste possible. Une échéance
+  // payée ne peut de toute façon pas disparaître : ses allocations la protègent (NoAction plus bas).
+  cycle       Cycle        @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  membre      MembreCaisse @relation(fields: [membreCaisseId], references: [id], onDelete: NoAction)
+  allocations Allocation[]
+
+  @@unique([cycleId, membreCaisseId])
+  @@index([membreCaisseId])
+  @@map("echeances")
+}
+
+model Paiement {
+  id                  String         @id @default(uuid()) @db.Uuid
+  ownerId             String         @map("owner_id") @db.Uuid
+  personneId          String?        @map("personne_id") @db.Uuid // null tant que non identifié
+  canal               Canal
+  source              Source
+  montant             Int
+  nomExpediteur       String?        @map("nom_expediteur") @db.VarChar(150)
+  telephoneExpediteur String?        @map("telephone_expediteur") @db.VarChar(9)
+  reference           String?        @db.VarChar(100)
+  dateReception       DateTime       @map("date_reception")
+  texteBrut           String?        @map("texte_brut")
+  statut              StatutPaiement @default(A_RAPPROCHER)
+  origine             OriginePaiement @default(CAPTURE)
+  /// Versés repris seulement (null pour une capture).
+  datation            DatationReprise?
+  /// SMS ignoré qui a servi à dater un versé repris (le même argent) : le versé daté. Ne revient jamais dans les comptes.
+  dateRepriseId       String?        @map("date_reprise_id") @db.Uuid
+  /// Note libre de la trésorière : ne change jamais le comportement d'un paiement.
+  note                String?
+  // Excédent = montant − somme des allocations − bonne volonté éventuelle (calculé, jamais stocké).
+  // rembourseLe marque cet excédent comme remboursé.
+  rembourseLe         DateTime?      @map("rembourse_le")
+  // Date de validation du rapprochement (liste « Derniers rapprochés », 7 jours).
+  rapprocheLe         DateTime?      @map("rapproche_le")
+  createdAt           DateTime       @default(now()) @map("created_at")
+
+  owner       Utilisatrice @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  personne    Personne?    @relation(fields: [personneId], references: [id], onDelete: SetNull)
+  allocations Allocation[]
+  /// Part de l'excédent gardée comme bonne volonté (collecte).
+  don         Don?
+  repriseDatee Paiement?  @relation("DatationParSms", fields: [dateRepriseId], references: [id], onDelete: SetNull)
+  smsDatants   Paiement[] @relation("DatationParSms")
+
+  @@unique([ownerId, canal, reference]) // anti-doublon (NULL autorisé plusieurs fois)
+  @@index([ownerId, statut])
+  @@index([ownerId, origine])
+  @@index([personneId])
+  @@map("paiements")
+}
+
+model Allocation {
+  paiementId String @map("paiement_id") @db.Uuid
+  echeanceId String @map("echeance_id") @db.Uuid
+  montant    Int
+
+  paiement Paiement @relation(fields: [paiementId], references: [id], onDelete: Cascade)
+  echeance Echeance @relation(fields: [echeanceId], references: [id], onDelete: NoAction)
+
+  @@id([paiementId, echeanceId])
+  @@index([echeanceId])
+  @@map("allocations")
+}
+
+model JournalAudit {
+  id        BigInt   @id @default(autoincrement())
+  ownerId   String   @map("owner_id") @db.Uuid
+  entite    String   @db.VarChar(50)
+  entiteId  String   @map("entite_id")
+  action    String   @db.VarChar(50)
+  details   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  owner Utilisatrice @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, entite, entiteId])
+  @@map("journal_audit")
+}
+
+// SMS collé que le parser n'a pas su lire. Montant et date étant obligatoires sur
+// Paiement, il est gardé ici : la trésorière crée ensuite le paiement à la main,
+// puis marque le SMS comme traité. Texte stocké SANS la ligne « Nouveau solde ».
+model SmsNonLu {
+  id          String         @id @default(uuid()) @db.Uuid
+  ownerId     String         @map("owner_id") @db.Uuid
+  texteBrut   String         @map("texte_brut")
+  dateCollage DateTime       @default(now()) @map("date_collage")
+  statut      StatutSmsNonLu @default(A_TRAITER)
+
+  owner Utilisatrice @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, statut])
+  @@map("sms_non_lus")
+}
+
+// Sortie d'argent d'une collecte (phase 11) : nourriture, transport, avances, sommes remises…
+// Restant de la caisse = cotisations encaissées (allocations) − dépenses (calculé, jamais stocké).
+model Depense {
+  id           String           @id @default(uuid()) @db.Uuid
+  ownerId      String           @map("owner_id") @db.Uuid
+  caisseId     String           @map("caisse_id") @db.Uuid
+  date         DateTime         @db.Date
+  montant      Int
+  motif        String           @db.VarChar(200)
+  /// À qui l'argent a été remis (texte libre, pas forcément un membre).
+  beneficiaire String?          @db.VarChar(150)
+  canal        Canal
+  categorie    CategorieDepense
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+
+  owner  Utilisatrice @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  caisse Caisse       @relation(fields: [caisseId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, caisseId])
+  @@map("depenses")
+}
+
+/// Bonne volonté : don d'une personne ou d'une structure à une collecte, en plus des cotisations.
+/// Saisi à part, ou issu de l'excédent d'un paiement (import, « À rembourser ») : paiementId.
+model Don {
+  id         String   @id @default(uuid()) @db.Uuid
+  ownerId    String   @map("owner_id") @db.Uuid
+  caisseId   String   @map("caisse_id") @db.Uuid
+  date       DateTime @db.Date
+  montant    Int
+  /// Nom libre (« ABK », « Ibou ») : pas forcément une personne de Cotiz.
+  donateur   String   @db.VarChar(150)
+  /// Qui a remis l'argent à la trésorière (« ABK », « Lamine ») quand il ne lui a pas été envoyé directement.
+  remisPar   String?  @map("remis_par") @db.VarChar(150)
+  canal      Canal
+  note       String?  @db.VarChar(200)
+  paiementId String?  @unique @map("paiement_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  owner    Utilisatrice @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  caisse   Caisse       @relation(fields: [caisseId], references: [id], onDelete: Cascade)
+  paiement Paiement?    @relation(fields: [paiementId], references: [id], onDelete: NoAction)
+
+  @@index([ownerId, caisseId])
+  @@map("dons")
+}
+
+// Tentatives de connexion échouées (audit, lot 2) : au-delà de 5 en 15 min pour une même adresse,
+// la connexion est refusée un moment. L'adresse n'est jamais stockée en clair (empreinte SHA-256).
+// RLS activée sans policy : jamais lisible avec la clé publique.
+model TentativeConnexion {
+  id        BigInt   @id @default(autoincrement())
+  cle       String   @db.VarChar(64)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([cle, createdAt])
+  @@map("tentatives_connexion")
+}

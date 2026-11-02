@@ -1,0 +1,119 @@
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import Link from "next/link";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+
+/** Bouton blanc posé sur l'en-tête teal (action principale d'une page). */
+export const BOUTON_EN_TETE = cn(
+  buttonVariants({ variant: "secondary" }),
+  "mt-3 w-fit bg-primary-foreground text-base text-primary hover:bg-primary-foreground/90",
+);
+
+/** Chiffre clé affiché côte à côte dans le bandeau, sur ordinateur. */
+export type ChiffreCle = { libelle: string; valeur: string; alerte?: boolean };
+
+/**
+ * En-tête « héros » des pages de chiffres : bloc teal nuit qui prolonge la barre du haut et se termine
+ * par un grand arrondi (charte de la refonte). Il sort de la colonne centrale (marges négatives calculées sur la largeur de l'écran)
+ * pour occuper toute la largeur, le contenu restant centré sur max-w-md.
+ * Sur ordinateur (lg) : bandeau arrondi dans la colonne, fil d'Ariane (« Caisses › Collecte ») et,
+ * si `chiffres` est donné, les chiffres clés côte à côte en bas du bandeau (ils remplacent alors le grand montant).
+ * `leger` (formulaires) : simple titre sur le fond de la page, sans bandeau (identité, lot 1).
+ */
+export function EnTete({
+  titre,
+  retour,
+  surtitre,
+  montant,
+  chiffres,
+  children,
+  className,
+  leger = false,
+}: {
+  titre: React.ReactNode;
+  /** Lien de retour affiché au-dessus du titre. */
+  retour?: { href: string; libelle: string };
+  /** Petit libellé sous le titre (au-dessus du montant), en texte normal (audit, lot 2). */
+  surtitre?: React.ReactNode;
+  /** Grand chiffre (déjà formaté), ex. « 84 500 FCFA ». */
+  montant?: React.ReactNode;
+  /** Chiffres clés du bandeau, sur ordinateur seulement (le téléphone garde le grand montant). */
+  chiffres?: ChiffreCle[];
+  children?: React.ReactNode;
+  className?: string;
+  /** En-tête léger, sans bandeau : pour les formulaires. */
+  leger?: boolean;
+}) {
+  const avecChiffres = !leger && chiffres !== undefined && chiffres.length > 0;
+  return (
+    <header
+      className={cn(
+        leger
+          ? "pt-1 lg:pt-0"
+          : [
+              "-mt-4 mb-1 mx-[calc(50%-50vw)] rounded-b-3xl bg-nuit px-5 pt-1 pb-7 text-primary-foreground",
+              "lg:m-0 lg:overflow-hidden lg:rounded-3xl lg:px-10 lg:pt-6 lg:pb-9 lg:shadow-lg",
+            ],
+        className,
+      )}
+    >
+      <div className={cn("mx-auto flex w-full flex-col gap-1 lg:max-w-none", !leger && "max-w-md")}>
+        <div className="flex min-w-0 flex-col gap-1">
+          {retour && (
+            <nav aria-label="Fil d'Ariane" className={cn("flex items-center gap-1 text-sm", leger ? "text-primary" : "text-nuit-doux")}>
+              <Link
+                href={retour.href}
+                className={cn(
+                  "-ml-2 flex h-11 w-fit items-center gap-1 pr-2 font-medium lg:ml-0 lg:h-8 lg:pr-0 lg:hover:underline",
+                  !leger && "lg:hover:text-primary-foreground",
+                )}
+              >
+                <ChevronLeft aria-hidden className="size-5 lg:hidden" />
+                {retour.libelle}
+              </Link>
+              {typeof titre === "string" && (
+                <span aria-current="page" className="hidden min-w-0 items-center gap-1 lg:flex">
+                  <ChevronRight aria-hidden className="size-4 shrink-0" />
+                  <span className={cn("truncate font-semibold", leger ? "text-foreground" : "text-primary-foreground")}>{titre}</span>
+                </span>
+              )}
+            </nav>
+          )}
+          <h1 className={cn("font-semibold tracking-tight lg:text-3xl", montant !== undefined ? "text-lg" : "text-2xl")}>{titre}</h1>
+          {surtitre && <p className={cn("text-sm lg:text-base", leger ? "text-muted-foreground" : "text-nuit-doux")}>{surtitre}</p>}
+          {montant !== undefined && (
+            <p className={cn("font-heading text-4xl font-bold tracking-tight lg:mt-2 lg:text-5xl", avecChiffres && "lg:hidden")}>{montant}</p>
+          )}
+          {children}
+        </div>
+        {avecChiffres && (
+          <dl className="mt-5 hidden grid-cols-2 gap-3 lg:grid xl:auto-cols-fr xl:grid-flow-col motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-500">
+            {chiffres.map((c) => (
+              <div key={c.libelle} className={cn("rounded-2xl bg-primary-foreground/12 px-4 py-3 ring-1 ring-primary-foreground/15", c.alerte && "bg-primary-foreground text-retard")}>
+                <dt className={cn("text-sm font-medium text-nuit-doux", c.alerte && "text-retard")}>{c.libelle}</dt>
+                <dd className="mt-1 font-heading text-2xl font-bold tracking-tight whitespace-nowrap">{c.valeur}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </div>
+    </header>
+  );
+}
+
+/** Barre de progression or (l'argent reçu), à placer dans l'en-tête (reçu sur attendu). */
+export function Progression({ valeur, total, libelle }: { valeur: number; total: number; libelle: string }) {
+  const pourcentage = total > 0 ? Math.min(100, Math.round((valeur / total) * 100)) : 0;
+  return (
+    <div
+      role="progressbar"
+      aria-label={libelle}
+      aria-valuenow={pourcentage}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      className="mt-3 h-2 overflow-hidden rounded-full bg-primary-foreground/20"
+    >
+      <div className="h-full rounded-full bg-or" style={{ width: `${pourcentage}%` }} />
+    </div>
+  );
+}

@@ -1,0 +1,12 @@
+# Fins de ligne LF partout, y compris sous Windows.
+# Indispensable pour prisma/migrations : Prisma compare une empreinte (checksum)
+# de chaque migration.sql, qui changerait si Git convertissait en CRLF.
+* text=auto eol=lf
+*.ico binary
+
+# SMS de test : gardés octet pour octet (fins de ligne Windows comprises),
+# pour tester de vrais copier-coller.
+tests/fixtures/sms/*.txt -text
+
+# Listes collées depuis Word / Excel : gardées octet pour octet (tabulations, CRLF).
+tests/fixtures/import/*.txt -text
