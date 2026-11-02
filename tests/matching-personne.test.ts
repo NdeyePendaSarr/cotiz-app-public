@@ -94,7 +94,7 @@ describe("identifierPersonne : autres cas", () => {
   });
 });
 
-describe("noms proches : noms Wave des SMS réels", () => {
+describe("noms proches : noms Wave des SMS du fichier (forme des vrais)", () => {
   it.each([
     ["K Mbaye", "khadim"],
     ["M Thiam", "mamadou"],

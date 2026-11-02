@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { chercherDoublonsProbables, completerDepuisSms, type PaiementComparable } from "@/lib/capture/doublons";
 import { preparerCaptureSms } from "@/lib/capture/sms";
-import { chargerSmsReels } from "./fixtures/sms/charger";
+import { chargerSmsFormatWave } from "./fixtures/sms/charger";
 import { FICTIFS } from "./fixtures/sms/fictifs";
 
-const REELS = chargerSmsReels();
+const SMS_FICHIER = chargerSmsFormatWave();
 
 describe("preparerCaptureSms", () => {
-  it("[R] SMS réel lisible → paiement, texte gardé SANS la ligne du solde", () => {
-    const r = preparerCaptureSms(REELS[0]);
+  it("[R] SMS au format réel lisible → paiement, texte gardé SANS la ligne du solde", () => {
+    const r = preparerCaptureSms(SMS_FICHIER[0]);
     expect(r.type).toBe("paiement");
     if (r.type !== "paiement") return;
     expect(r.donnees).toEqual({
@@ -48,7 +48,7 @@ describe("preparerCaptureSms", () => {
   });
 
   it("[R] 2 SMS collés d'un coup → refus, rien n'est enregistré", () => {
-    expect(preparerCaptureSms(`${REELS[0]}\r\n${REELS[1]}`)).toEqual({ type: "refus", raison: "2 SMS détectés, colle-les un par un" });
+    expect(preparerCaptureSms(`${SMS_FICHIER[0]}\r\n${SMS_FICHIER[1]}`)).toEqual({ type: "refus", raison: "2 SMS détectés, colle-les un par un" });
   });
 });
 

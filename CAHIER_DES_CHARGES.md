@@ -113,7 +113,7 @@ export function retirerLigneSolde(texte: string): string;
 6. Texte qui n'est pas un SMS de réception : `ok: false`.
 7. Le solde n'apparaît nulle part dans le résultat.
 
-9 SMS réels ont été fournis ; le dépôt n'en garde que la forme (`tests/fixtures/sms/reels.txt` : noms, numéros, références, dates et soldes inventés, mêmes pièges de format).
+9 SMS réels ont été fournis ; le dépôt n'en garde que la forme (`tests/fixtures/sms/format-wave.txt` : noms, numéros, références, dates et soldes inventés, mêmes pièges de format).
 
 ## Format SMS Orange Money (v1, pas encore codé)
 
@@ -426,7 +426,7 @@ Tu travailles avec une développeuse qui doit pouvoir expliquer chaque choix en 
 - **Parser SMS Wave (phase 3)** :
   - Champs obligatoires : seulement le montant (> 0) et la date. Nom, numéro et référence sont facultatifs : s'ils manquent (ou si le numéro n'a pas 9 chiffres), `ok: true`, champ à `null`, nom du champ (`nom`, `telephone`, `reference`) dans `champsManquants`. La trésorière complète au rapprochement.
   - Plusieurs SMS collés d'un coup : refusés avec la raison « 2 SMS détectés, colle-les un par un » (pour ne jamais en perdre un en silence).
-  - Tests : 9 SMS au format réel, données inventées (`tests/fixtures/sms/reels.txt`, noms, numéros, références, dates et soldes remplacés le 02/11/2026 avant publication du code, gardé octet pour octet par `.gitattributes`), complétés par des cas fictifs (`tests/fixtures/sms/fictifs.ts`). Les SMS à refuser sont fictifs ; de vrais exemples seront ajoutés s'ils sont trouvés.
+  - Tests : 9 SMS au format réel, données inventées (`tests/fixtures/sms/format-wave.txt`, noms, numéros, références, dates et soldes remplacés le 02/11/2026 avant publication du code, gardé octet pour octet par `.gitattributes`), complétés par des cas fictifs (`tests/fixtures/sms/fictifs.ts`). Les SMS à refuser sont fictifs ; de vrais exemples seront ajoutés s'ils sont trouvés.
 - **Authentification v0 (phase 2)** :
   - **Inscription fermée** : « Allow new users to sign up » est désactivé dans Supabase ; pas de page `/inscription` ni d'action d'inscription. Les comptes sont créés dans le tableau de bord Supabase (Authentication → Users). Raison : avec l'inscription ouverte, n'importe qui pourrait appeler l'API d'inscription de Supabase avec la clé publique, puis obtenir une ligne `Utilisatrice` grâce à la création automatique ci-dessous.
   - **Confirmation d'e-mail désactivée** dans Supabase (le service d'envoi intégré est trop limité).

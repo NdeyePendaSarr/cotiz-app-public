@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { parserSmsWave, retirerLigneSolde, type ResultatParsing } from "@/lib/parsers/smsWave";
-import { chargerSmsReels } from "./fixtures/sms/charger";
+import { chargerSmsFormatWave } from "./fixtures/sms/charger";
 import { FICTIFS, smsReception } from "./fixtures/sms/fictifs";
 
-// Source de chaque cas : [R] = SMS au format réel, données inventées (tests/fixtures/sms/reels.txt), [F] = fictif.
+// Source de chaque cas : [R] = SMS au format réel, données inventées (tests/fixtures/sms/format-wave.txt), [F] = fictif.
 
-const REELS = chargerSmsReels();
+const SMS_FICHIER = chargerSmsFormatWave();
 
 // Valeurs attendues pour les 9 SMS du fichier, dans l'ordre. Heure de Dakar = UTC.
-const ATTENDUS_REELS = [
+const ATTENDUS_FICHIER = [
   { nom: "Coumba Faye", tel: "781112233", date: "2026-09-23T13:55:00.000Z", ref: "UB3LD64CZ8BF8CIT1", solde: "40.100" },
   { nom: "Abdou ndao", tel: "771112233", date: "2026-09-24T22:04:00.000Z", ref: "TZXK7PGRPJWNDGVQE", solde: "41.200" },
   { nom: "Bou Ndaiye", tel: "781112233", date: "2026-09-26T14:54:00.000Z", ref: "TYT7YIR0O97D9JB9O", solde: "42.300" },
@@ -34,15 +34,15 @@ function refuse(texte: string) {
   return r;
 }
 
-describe("fichier des SMS réels", () => {
+describe("fichier format-wave.txt", () => {
   it("[R] contient bien 9 SMS", () => {
-    expect(REELS).toHaveLength(9);
+    expect(SMS_FICHIER).toHaveLength(9);
   });
 });
 
-describe("SMS réels : tous les champs exacts", () => {
+describe("SMS du fichier : tous les champs exacts", () => {
   // Cas 1 du cahier (SMS standard) + tests 2, 3, 4, 5, 6, 7 du plan.
-  it.each(REELS.map((texte, i) => [i + 1, texte, ATTENDUS_REELS[i]] as const))(
+  it.each(SMS_FICHIER.map((texte, i) => [i + 1, texte, ATTENDUS_FICHIER[i]] as const))(
     "[R] SMS n° %i",
     (_n, texte, attendu) => {
       const r = lu(texte);
@@ -56,30 +56,30 @@ describe("SMS réels : tous les champs exacts", () => {
   );
 
   it("[R] les SMS du fichier ont bien des fins de ligne Windows (CRLF)", () => {
-    expect(REELS[0]).toContain("\r\n");
+    expect(SMS_FICHIER[0]).toContain("\r\n");
   });
 
   it("[R] nom en minuscules gardé tel quel (rokh, Abdou ndao)", () => {
-    expect(lu(REELS[6]).nomExpediteur).toBe("rokh");
-    expect(lu(REELS[1]).nomExpediteur).toBe("Abdou ndao");
+    expect(lu(SMS_FICHIER[6]).nomExpediteur).toBe("rokh");
+    expect(lu(SMS_FICHIER[1]).nomExpediteur).toBe("Abdou ndao");
   });
 
   it("[R] double espace après « De » : « K Mbaye »", () => {
-    expect(lu(REELS[3]).nomExpediteur).toBe("K Mbaye");
+    expect(lu(SMS_FICHIER[3]).nomExpediteur).toBe("K Mbaye");
   });
 
   it("[R] accent conservé : « Bay Mbengué »", () => {
-    expect(lu(REELS[7]).nomExpediteur).toBe("Bay Mbengué");
+    expect(lu(SMS_FICHIER[7]).nomExpediteur).toBe("Bay Mbengué");
   });
 
   it("[R] heures 00h22 et 01h41 : pas de décalage de jour", () => {
-    expect(lu(REELS[8]).dateReception.toISOString()).toBe("2026-09-28T00:22:00.000Z");
-    expect(lu(REELS[4]).dateReception.toISOString()).toBe("2026-09-27T01:41:00.000Z");
+    expect(lu(SMS_FICHIER[8]).dateReception.toISOString()).toBe("2026-09-28T00:22:00.000Z");
+    expect(lu(SMS_FICHIER[4]).dateReception.toISOString()).toBe("2026-09-27T01:41:00.000Z");
   });
 });
 
 describe("le solde n'apparaît jamais (cas 7 du cahier)", () => {
-  it.each(REELS.map((texte, i) => [i + 1, texte, ATTENDUS_REELS[i].solde] as const))(
+  it.each(SMS_FICHIER.map((texte, i) => [i + 1, texte, ATTENDUS_FICHIER[i].solde] as const))(
     "[R] SMS n° %i",
     (_n, texte, solde) => {
       const resultat = JSON.stringify(parserSmsWave(texte));
@@ -106,7 +106,7 @@ describe("formats à tolérer", () => {
 
   it("[F] copier-coller iPhone : espaces insécables, lignes vides, caractères invisibles (cas 4)", () => {
     const r = lu(FICTIFS.iphone);
-    expect(r).toEqual({ ...lu(REELS[0]) });
+    expect(r).toEqual({ ...lu(SMS_FICHIER[0]) });
   });
 
   it("[F] « reçu » avec cédille", () => {
@@ -192,7 +192,7 @@ describe("refus : ok: false, sans exception", () => {
   });
 
   it("[R] deux SMS collés d'un coup", () => {
-    const r = refuse(`${REELS[0]}\r\n\r\n${REELS[1]}`);
+    const r = refuse(`${SMS_FICHIER[0]}\r\n\r\n${SMS_FICHIER[1]}`);
     if (!r.ok) expect(r.raison).toBe("2 SMS détectés, colle-les un par un");
   });
 
@@ -214,7 +214,7 @@ describe("refus : ok: false, sans exception", () => {
 
 describe("retirerLigneSolde", () => {
   it("[R] retire la ligne du solde et garde toutes les autres", () => {
-    const sansSolde = retirerLigneSolde(REELS[0]);
+    const sansSolde = retirerLigneSolde(SMS_FICHIER[0]);
     expect(sansSolde.toLowerCase()).not.toContain("solde");
     expect(sansSolde).not.toContain("40.100");
     for (const morceau of ["Vous avez recu 2.000F", "De Coumba Faye (781112233)", "23/09/2026 à 13h55", "UB3LD64CZ8BF8CIT1"]) {

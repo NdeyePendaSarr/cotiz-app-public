@@ -1,4 +1,4 @@
-// SMS fictifs : ils complètent les SMS réels pour les cas absents de reels.txt.
+// SMS fictifs : ils complètent les SMS de format-wave.txt pour les cas qui n'y sont pas.
 // Les caractères invisibles sont écrits en clair ( …) pour rester lisibles.
 
 const NBSP = " "; // espace insécable
