@@ -7,7 +7,7 @@ import type { Prisma } from "@/lib/generated/prisma/client";
 
 // Audit, lot 2 : aussi la clôture d'un cycle, la modification d'une caisse ou d'une personne
 // (numéros remplacés) et le retrait / la réactivation d'un membre (échéance retirée ou recréée).
-export type EntiteJournal = "Paiement" | "Allocation" | "SmsNonLu" | "Depense" | "Don" | "Cycle" | "Caisse" | "Personne" | "MembreCaisse";
+export type EntiteJournal = "Paiement" | "Allocation" | "SmsNonLu" | "Depense" | "Don" | "Cycle" | "Caisse" | "Personne" | "MembreCaisse" | "MouvementCompte";
 export type ActionJournal = "CREATION" | "COMPLETION" | "MODIFICATION" | "SUPPRESSION" | "TRAITEMENT";
 
 export async function journaliser(

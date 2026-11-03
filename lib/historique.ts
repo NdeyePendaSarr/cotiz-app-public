@@ -44,6 +44,7 @@ export function decrireLigne(ligne: LigneJournal, echeances: ReadonlyMap<string,
       return champs.length > 0 ? `Complété depuis un SMS (${champs.join(", ")})` : "Complété depuis un SMS";
     }
     if (ligne.action === "MODIFICATION") {
+      if (d.rapprochement && typeof d.compte === "string") return `Versé sur le compte gardé « ${d.compte} »`;
       if (d.rapprochement) return typeof d.excedent === "number" && d.excedent > 0 ? `Rapproché, excédent de ${montant(d.excedent)}` : "Rapproché";
       if (d.annulationRapprochement) return "Rapprochement annulé : de nouveau à rapprocher";
       if (typeof d.rembourse === "number") return `Excédent remboursé : ${montant(d.rembourse)}`;

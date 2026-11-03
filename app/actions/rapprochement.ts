@@ -164,6 +164,58 @@ export async function validerSurs(formData: FormData) {
   refresh();
 }
 
+/**
+ * Verse tout un paiement sur le compte gardé de la personne (argent qu'elle confie, pas une
+ * cotisation) : paiement rapproché à cette personne, un versement créé sur son compte, journalisés
+ * ensemble. Revérifié ici : paiement à rapprocher, compte actif dont la personne est titulaire.
+ */
+export async function verserSurCompte(paiementId: string, _etat: EtatRapprochement, formData: FormData): Promise<EtatRapprochement> {
+  const { id: ownerId } = await exigerUtilisatrice();
+  const idPaiement = schemaIdentifiant.safeParse(paiementId);
+  const idPersonne = schemaIdentifiant.safeParse(formData.get("personneId"));
+  const idCompte = schemaIdentifiant.safeParse(formData.get("compteId"));
+  if (!idPaiement.success) return { erreur: "Paiement introuvable." };
+  if (!idPersonne.success) return { erreur: "Choisis d'abord la personne." };
+  if (!idCompte.success) return { erreur: "Choisis le compte." };
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      if (!(await verrouillerPaiement(tx, ownerId, idPaiement.data, ["A_RAPPROCHER"]))) throw new RefusRapprochement("Ce paiement a déjà été traité.");
+      const paiement = await tx.paiement.findFirst({ where: { id: idPaiement.data, ownerId, statut: "A_RAPPROCHER" }, select: { id: true, montant: true, canal: true, dateReception: true } });
+      if (!paiement) throw new RefusRapprochement("Ce paiement a déjà été traité.");
+      const compte = await tx.caisse.findFirst({
+        where: { id: idCompte.data, ownerId, type: "COMPTE_GARDE", statut: "ACTIVE", membres: { some: { personneId: idPersonne.data } } },
+        select: { id: true, nom: true },
+      });
+      if (!compte) throw new RefusRapprochement("Ce compte n'est pas celui de cette personne.");
+
+      const { count } = await tx.paiement.updateMany({
+        where: { id: paiement.id, ownerId, statut: "A_RAPPROCHER" },
+        data: { personneId: idPersonne.data, statut: "RAPPROCHE", rapprocheLe: new Date() },
+      });
+      if (count !== 1) throw new RefusRapprochement("Ce paiement a déjà été traité.");
+      const date = new Date(`${paiement.dateReception.toISOString().slice(0, 10)}T00:00:00.000Z`);
+      const m = await tx.mouvementCompte.create({
+        data: { ownerId, caisseId: compte.id, date, montant: paiement.montant, sens: "VERSEMENT", canal: paiement.canal, paiementId: paiement.id },
+        select: { id: true },
+      });
+      await journaliser(tx, { ownerId, entite: "Paiement", entiteId: paiement.id, action: "MODIFICATION", details: { rapprochement: true, personneId: idPersonne.data, compte: compte.nom } });
+      await journaliser(tx, {
+        ownerId,
+        entite: "MouvementCompte",
+        entiteId: m.id,
+        action: "CREATION",
+        details: { date: date.toISOString().slice(0, 10), montant: paiement.montant, sens: "VERSEMENT", canal: paiement.canal, paiementId: paiement.id },
+      });
+    });
+  } catch (e) {
+    if (e instanceof RefusRapprochement) return { erreur: e.message };
+    throw e;
+  }
+  await annoncer("Versé sur le compte ✓");
+  refresh();
+}
+
 const lirePaiementId = (formData: FormData) => schemaIdentifiant.safeParse(formData.get("paiementId"));
 
 /** Paiement sans rapport avec les tontines. Réversible (« Remettre à rapprocher »). */
@@ -205,6 +257,7 @@ export async function annulerRapprochement(formData: FormData) {
         id: true,
         rembourseLe: true,
         don: { select: { id: true, montant: true } },
+        mouvementCompte: { select: { id: true, montant: true } },
         allocations: { select: { echeanceId: true, montant: true, echeance: { select: { cycle: { select: { statut: true } } } } } },
       },
     });
@@ -216,6 +269,18 @@ export async function annulerRapprochement(formData: FormData) {
     if (paiement.don) {
       await tx.don.delete({ where: { id: paiement.don.id } });
       await journaliser(tx, { ownerId, entite: "Don", entiteId: paiement.don.id, action: "SUPPRESSION", details: { montant: paiement.don.montant, annulationRapprochement: true } });
+    }
+
+    // Versé sur un compte gardé : le versement disparaît du compte avec le rapprochement.
+    if (paiement.mouvementCompte) {
+      await tx.mouvementCompte.delete({ where: { id: paiement.mouvementCompte.id } });
+      await journaliser(tx, {
+        ownerId,
+        entite: "MouvementCompte",
+        entiteId: paiement.mouvementCompte.id,
+        action: "SUPPRESSION",
+        details: { montant: paiement.mouvementCompte.montant, annulationRapprochement: true },
+      });
     }
 
     await tx.allocation.deleteMany({ where: { paiementId: paiement.id } });

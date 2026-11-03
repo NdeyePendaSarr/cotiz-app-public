@@ -8,14 +8,16 @@ import { Bloc, LIGNE, Section } from "@/components/cotiz/section";
 import { SqueletteListe } from "@/components/cotiz/squelette";
 import { exigerUtilisatrice } from "@/lib/auth";
 import { listerCaisses } from "@/lib/donnees/caisses";
+import { resumesComptes } from "@/lib/donnees/comptes";
 import { formaterDate, formaterFCFA, libelleEcheance, LIBELLES_TYPE } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Caisses · Cotiz" };
 
 export default function PageCaisses() {
   return (
     <>
-      <EnTete titre="Mes caisses" surtitre="Tontines et collectes">
+      <EnTete titre="Mes caisses" surtitre="Tontines, collectes et comptes gardés">
         <Link href="/caisses/nouvelle" className={BOUTON_EN_TETE}>
           <Plus aria-hidden />
           Nouvelle caisse
@@ -30,7 +32,7 @@ export default function PageCaisses() {
 
 async function ListeCaisses() {
   const { id: ownerId } = await exigerUtilisatrice();
-  const caisses = await listerCaisses(ownerId);
+  const [caisses, comptes] = await Promise.all([listerCaisses(ownerId), resumesComptes(ownerId)]);
   const actives = caisses.filter((c) => c.statut === "ACTIVE");
   const archivees = caisses.filter((c) => c.statut === "ARCHIVEE");
 
@@ -44,7 +46,7 @@ async function ListeCaisses() {
         <Section titre={`Actives (${actives.length})`}>
           <Bloc>
             {actives.map((c) => (
-              <LigneCaisse key={c.id} caisse={c} />
+              <LigneCaisse key={c.id} caisse={c} compte={comptes.get(c.id)} />
             ))}
           </Bloc>
         </Section>
@@ -56,7 +58,7 @@ async function ListeCaisses() {
           </summary>
           <Bloc className="opacity-70">
             {archivees.map((c) => (
-              <LigneCaisse key={c.id} caisse={c} />
+              <LigneCaisse key={c.id} caisse={c} compte={comptes.get(c.id)} />
             ))}
           </Bloc>
         </details>
@@ -67,7 +69,8 @@ async function ListeCaisses() {
 
 type Caisse = Awaited<ReturnType<typeof listerCaisses>>[number];
 
-function LigneCaisse({ caisse: c }: { caisse: Caisse }) {
+/** Compte gardé : le titulaire et le solde remplacent membres et montant par membre. */
+function LigneCaisse({ caisse: c, compte }: { caisse: Caisse; compte?: { solde: number; titulaire: string | null } }) {
   const echeance =
     c.type === "TONTINE"
       ? libelleEcheance(c.frequence, c.jourEcheance)
@@ -79,12 +82,18 @@ function LigneCaisse({ caisse: c }: { caisse: Caisse }) {
         <span className="line-clamp-2 font-semibold">{c.nom}</span>
         <span className="text-xs text-muted-foreground">
           <Pastille ton="info" className="mr-1.5 px-2 py-0.5">{LIBELLES_TYPE[c.type]}</Pastille>
-          {c._count.membres} membre{c._count.membres > 1 ? "s" : ""}
-          {echeance ? ` · ${echeance}` : ""}
+          {compte ? (
+            compte.titulaire && `pour ${compte.titulaire}`
+          ) : (
+            <>
+              {c._count.membres} membre{c._count.membres > 1 ? "s" : ""}
+              {echeance ? ` · ${echeance}` : ""}
+            </>
+          )}
         </span>
       </span>
-      <span className="flex items-center gap-1 text-sm font-semibold">
-        {formaterFCFA(c.montantCotisation)}
+      <span className={cn("flex items-center gap-1 text-sm font-semibold", compte && compte.solde < 0 && "text-retard")}>
+        {formaterFCFA(compte ? compte.solde : c.montantCotisation)}
         <ChevronRight aria-hidden className="size-4 text-muted-foreground" />
       </span>
     </Link>

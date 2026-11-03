@@ -21,11 +21,11 @@ export async function marquerRembourse(formData: FormData) {
     if (!(await verrouillerPaiement(tx, ownerId, id.data, ["RAPPROCHE"]))) return;
     const paiement = await tx.paiement.findFirst({
       where: { id: id.data, ownerId, statut: "RAPPROCHE", rembourseLe: null },
-      select: { montant: true, allocations: { select: { montant: true } }, don: { select: { montant: true } } },
+      select: { montant: true, allocations: { select: { montant: true } }, don: { select: { montant: true } }, mouvementCompte: { select: { montant: true } } },
     });
     if (!paiement) return;
     // La part gardée en bonne volonté n'est pas à rembourser (même règle que la page « À rembourser »).
-    const excedent = excedentPaiement(paiement.montant, paiement.allocations, paiement.don);
+    const excedent = excedentPaiement(paiement.montant, paiement.allocations, paiement.don, paiement.mouvementCompte);
     if (excedent <= 0) return;
     await tx.paiement.update({ where: { id: id.data }, data: { rembourseLe: new Date() } });
     await journaliser(tx, { ownerId, entite: "Paiement", entiteId: id.data, action: "MODIFICATION", details: { rembourse: excedent } });

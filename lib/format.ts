@@ -39,6 +39,7 @@ export function versChampDate(date: Date) {
 export const LIBELLES_TYPE: Record<TypeCaisse, string> = {
   TONTINE: "Tontine",
   COLLECTE: "Collecte",
+  COMPTE_GARDE: "Compte gardé",
 };
 
 export const LIBELLES_FREQUENCE: Record<Frequence, string> = {

@@ -77,6 +77,7 @@ export async function historiquePaiement(ownerId: string, id: string) {
       rapprocheLe: true,
       rembourseLe: true,
       don: { select: { id: true, montant: true, caisseId: true } },
+      mouvementCompte: { select: { montant: true, caisse: { select: { id: true, nom: true } } } },
       allocations: {
         orderBy: { echeance: { cycle: { dateEcheance: "asc" } } },
         select: {

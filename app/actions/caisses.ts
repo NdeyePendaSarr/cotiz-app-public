@@ -15,7 +15,7 @@ export type EtatFormulaireCaisse =
   | { erreur?: string; erreurs?: Record<string, string>; valeurs?: Record<string, string> }
   | undefined;
 
-const CHAMPS = ["type", "nom", "montantCotisation", "frequence", "jourEcheance", "dateLimite", "modeleRelance"] as const;
+const CHAMPS = ["type", "nom", "montantCotisation", "frequence", "jourEcheance", "dateLimite", "modeleRelance", "titulaireId"] as const;
 
 function lireFormulaire(formData: FormData) {
   const valeurs: Record<string, string> = {};
@@ -43,8 +43,17 @@ export async function creerCaisse(_etat: EtatFormulaireCaisse, formData: FormDat
   if (!saisie.success) return { erreurs: erreursParChamp(saisie.error), valeurs };
 
   const donnees = saisie.data;
+  // Compte gardé : son titulaire, une personne de l'utilisatrice (revérifiée ici).
+  let titulaireId: string | null = null;
+  if (donnees.type === "COMPTE_GARDE") {
+    const titulaire = donnees.titulaireId ? await prisma.personne.findFirst({ where: { id: donnees.titulaireId, ownerId }, select: { id: true } }) : null;
+    if (!titulaire) return { erreurs: { titulaireId: "Choisis la personne pour qui tu gardes l'argent." }, valeurs };
+    titulaireId = titulaire.id;
+  }
   const caisse = await prisma.$transaction(async (tx) => {
     const creee = await tx.caisse.create({ data: { ownerId, ...versChampsCaisse(donnees) }, select: { id: true } });
+    // Le titulaire est le seul membre d'un compte gardé (sans cycle ni échéance).
+    if (titulaireId) await tx.membreCaisse.create({ data: { caisseId: creee.id, personneId: titulaireId } });
     // Une collecte a un seul cycle, créé avec elle (début = aujourd'hui, échéance = date limite).
     // Aucun membre encore : les échéances arrivent avec chaque membre ajouté ou importé.
     if (donnees.type === "COLLECTE") {
@@ -89,7 +98,7 @@ export async function modifierCaisse(
       entite: "Caisse",
       entiteId: idValide.data,
       action: "MODIFICATION",
-      details: { nom: donnees.nom, montantCotisation: donnees.montantCotisation },
+      details: { nom: donnees.nom, montantCotisation: versChampsCaisse(donnees).montantCotisation },
     });
     // Collecte : la date limite est l'échéance de son cycle ouvert.
     if (donnees.type === "COLLECTE") {

@@ -73,6 +73,7 @@ export function derniersRapproches(ownerId: string) {
       rapprocheLe: true,
       rembourseLe: true,
       don: { select: { montant: true } },
+      mouvementCompte: { select: { montant: true, caisse: { select: { nom: true } } } },
       allocations: {
         select: { montant: true, echeance: { select: { cycle: { select: { numero: true, statut: true, caisse: { select: { nom: true } } } } } } },
       },

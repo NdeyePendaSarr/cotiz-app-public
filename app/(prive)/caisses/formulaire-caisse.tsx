@@ -11,6 +11,7 @@ import { BALISES_RELANCE, construireMessage, modeleParDefaut } from "@/lib/relan
 import { FREQUENCES_PROPOSEES } from "@/lib/validation/caisse";
 import { cn } from "@/lib/utils";
 import { CLASSE_LISTE, CLASSE_ZONE_TEXTE } from "@/components/cotiz/styles";
+import { ChoixPersonne, type PersonneChoisissable } from "@/components/cotiz/choix-personne";
 
 type Action = (etat: EtatFormulaireCaisse, formData: FormData) => Promise<EtatFormulaireCaisse>;
 
@@ -20,11 +21,14 @@ export function FormulaireCaisse({
   valeursInitiales = {},
   typeVerrouille = false,
   libelleBouton,
+  personnes = [],
 }: {
   action: Action;
   valeursInitiales?: Record<string, string>;
   typeVerrouille?: boolean;
   libelleBouton: string;
+  /** Création d'un compte gardé : les personnes parmi lesquelles choisir le titulaire. */
+  personnes?: PersonneChoisissable[];
 }) {
   const [etat, envoyer, enCours] = useActionState(action, undefined);
   const valeurs = etat?.valeurs ?? valeursInitiales;
@@ -39,12 +43,12 @@ export function FormulaireCaisse({
     <form action={envoyer} className="flex flex-col gap-5" noValidate>
       <fieldset className="flex flex-col gap-2" disabled={typeVerrouille}>
         <legend className="mb-2 text-sm font-medium">Type de caisse</legend>
-        <div className="grid grid-cols-2 gap-2">
-          {[TypeCaisse.TONTINE, TypeCaisse.COLLECTE].map((t) => (
+        <div className="grid grid-cols-3 gap-2">
+          {[TypeCaisse.TONTINE, TypeCaisse.COLLECTE, TypeCaisse.COMPTE_GARDE].map((t) => (
             <label
               key={t}
               className={cn(
-                "flex h-11 cursor-pointer items-center justify-center rounded-lg border text-base",
+                "flex min-h-11 cursor-pointer items-center justify-center rounded-lg border px-1 text-center text-sm leading-tight sm:text-base",
                 type === t && "border-primary bg-primary text-primary-foreground",
                 typeVerrouille && "cursor-not-allowed opacity-70",
               )}
@@ -72,6 +76,21 @@ export function FormulaireCaisse({
         <Input id="nom" name="nom" defaultValue={valeurs.nom} aria-invalid={Boolean(erreurs.nom)} className="h-11 text-base" />
       </Champ>
 
+      {type === TypeCaisse.COMPTE_GARDE ? (
+        <>
+          {!typeVerrouille && (
+            <div className="flex flex-col gap-2">
+              <p className="text-sm font-medium">Pour qui gardes-tu l&apos;argent ?</p>
+              <ChoixPersonne personnes={personnes} name="titulaireId" valeurInitiale={valeurs.titulaireId ?? null} libelle="Titulaire du compte" />
+              <p className="text-sm text-muted-foreground">
+                Ni montant ni échéance : tu notes ses versements et ce que tu lui rends, Cotiz tient le solde.
+              </p>
+              <Erreur message={erreurs.titulaireId} />
+            </div>
+          )}
+        </>
+      ) : (
+      <>
       <Champ id="montantCotisation" label="Montant par membre (FCFA)" erreur={erreurs.montantCotisation}>
         <Input
           id="montantCotisation"
@@ -154,6 +173,8 @@ export function FormulaireCaisse({
       )}
 
       <ChampModeleRelance valeurInitiale={valeurs.modeleRelance ?? ""} nomCaisse={valeurs.nom} type={type === TypeCaisse.COLLECTE ? "COLLECTE" : "TONTINE"} erreur={erreurs.modeleRelance} />
+      </>
+      )}
 
       {etat?.erreur && (
         <p role="alert" className="text-sm text-destructive">

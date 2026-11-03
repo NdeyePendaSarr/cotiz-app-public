@@ -42,10 +42,12 @@ async function Modification({ params }: { params: Promise<{ id: string }> }) {
 
   return (
     <>
-      <EnTete leger retour={{ href: `/caisses/${caisse.id}`, libelle: caisse.nom }} titre="Modifier la caisse" />
-      <p className="text-sm text-muted-foreground">
-        Un nouveau montant ne s&apos;applique qu&apos;aux cycles futurs : les échéances déjà créées gardent leur montant.
-      </p>
+      <EnTete leger retour={{ href: `/caisses/${caisse.id}`, libelle: caisse.nom }} titre={caisse.type === "COMPTE_GARDE" ? "Renommer le compte" : "Modifier la caisse"} />
+      {caisse.type !== "COMPTE_GARDE" && (
+        <p className="text-sm text-muted-foreground">
+          Un nouveau montant ne s&apos;applique qu&apos;aux cycles futurs : les échéances déjà créées gardent leur montant.
+        </p>
+      )}
       <FormulaireCaisse
         action={modifierCaisse.bind(null, caisse.id)}
         valeursInitiales={valeurs}

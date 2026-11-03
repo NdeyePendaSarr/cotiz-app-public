@@ -4,6 +4,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { SqueletteListe } from "@/components/cotiz/squelette";
+import { annulerRapprochement } from "@/app/actions/rapprochement";
+import { Button } from "@/components/ui/button";
 import { exigerUtilisatrice } from "@/lib/auth";
 import { historiquePaiement } from "@/lib/donnees/paiements";
 import { excedentPaiement } from "@/lib/dons";
@@ -36,7 +38,7 @@ async function DetailPaiement({ params }: { params: Promise<{ id: string }> }) {
   if (!historique) notFound();
 
   const { paiement: p, journal, libellesEcheances } = historique;
-  const excedent = p.statut === "RAPPROCHE" ? excedentPaiement(p.montant, p.allocations, p.don) : 0;
+  const excedent = p.statut === "RAPPROCHE" ? excedentPaiement(p.montant, p.allocations, p.don, p.mouvementCompte) : 0;
 
   return (
     <>
@@ -75,6 +77,27 @@ async function DetailPaiement({ params }: { params: Promise<{ id: string }> }) {
               Excédent : {formaterFCFA(excedent)}
               {p.rembourseLe ? `, remboursé le ${formaterDate(p.rembourseLe)}` : ", à rembourser"}
             </p>
+          )}
+        </section>
+      )}
+
+      {p.mouvementCompte && (
+        <section className="flex flex-col gap-2">
+          <h2 className="font-heading text-base font-semibold">Compte gardé</h2>
+          <p className="flex justify-between gap-2">
+            <Link href={`/caisses/${p.mouvementCompte.caisse.id}`} className="underline underline-offset-4">
+              {p.mouvementCompte.caisse.nom}
+            </Link>
+            <span className="shrink-0 text-paye">+{formaterFCFA(p.mouvementCompte.montant)}</span>
+          </p>
+          {p.statut === "RAPPROCHE" && (
+            // Seul moyen de corriger ce versement : le paiement redevient « à rapprocher », le versement disparaît.
+            <form action={annulerRapprochement}>
+              <input type="hidden" name="paiementId" value={p.id} />
+              <Button type="submit" variant="outline" className="h-11 w-full text-base">
+                Annuler le versement sur le compte
+              </Button>
+            </form>
           )}
         </section>
       )}

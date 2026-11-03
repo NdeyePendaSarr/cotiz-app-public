@@ -55,8 +55,15 @@ const collecte = z.object({
     .transform((d) => new Date(`${d}T00:00:00.000Z`)),
 });
 
+// Compte gardé : un nom et un titulaire (choisi à la création, jamais changé ensuite) ; pas de montant.
+const compteGarde = z.object({
+  type: z.literal(TypeCaisse.COMPTE_GARDE),
+  nom,
+  titulaireId: z.uuid({ error: "Choisis la personne pour qui tu gardes l'argent." }).optional(),
+});
+
 /** Saisie du formulaire de caisse (création et modification). */
-export const schemaCaisse = z.discriminatedUnion("type", [tontine, collecte], {
+export const schemaCaisse = z.discriminatedUnion("type", [tontine, collecte, compteGarde], {
   error: "Choisis le type de caisse.",
 });
 
@@ -64,6 +71,9 @@ export type DonneesCaisse = z.infer<typeof schemaCaisse>;
 
 /** Champs à écrire en base : les champs propres à l'autre type sont remis à null. */
 export function versChampsCaisse(c: DonneesCaisse) {
+  if (c.type === TypeCaisse.COMPTE_GARDE) {
+    return { nom: c.nom, montantCotisation: 0, modeleRelance: null, type: c.type, frequence: null, jourEcheance: null, dateLimite: null };
+  }
   return c.type === TypeCaisse.TONTINE
     ? { nom: c.nom, montantCotisation: c.montantCotisation, modeleRelance: c.modeleRelance, type: c.type, frequence: c.frequence, jourEcheance: c.jourEcheance, dateLimite: null }
     : { nom: c.nom, montantCotisation: c.montantCotisation, modeleRelance: c.modeleRelance, type: c.type, frequence: null, jourEcheance: null, dateLimite: c.dateLimite };

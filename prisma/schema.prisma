@@ -15,6 +15,14 @@ datasource db {
 enum TypeCaisse {
   TONTINE
   COLLECTE
+  /// Argent gardé pour une personne (versements et retraits, sans échéance) : solde = versé − retiré.
+  COMPTE_GARDE
+}
+
+/// Sens d'un mouvement de compte gardé.
+enum SensMouvement {
+  VERSEMENT // la personne confie de l'argent à la trésorière
+  RETRAIT // la trésorière lui rend une somme
 }
 
 enum Frequence {
@@ -51,15 +59,15 @@ enum Source {
 
 // Origine d'un paiement (audit, lot 2) : remplace les marqueurs écrits dans la note.
 enum OriginePaiement {
-  CAPTURE        // SMS collé ou saisie manuelle
+  CAPTURE // SMS collé ou saisie manuelle
   REPRISE_IMPORT // colonne « Versé » d'une liste importée (le même argent, déjà reçu)
 }
 
 // Date d'un versé repris : celle de l'import tant qu'il n'est pas daté (exclu du graphique).
 enum DatationReprise {
   NON_DATEE
-  PAR_SMS    // date et référence d'un paiement Wave / Orange Money (SMS, application)
-  A_LA_MAIN  // date saisie par la trésorière (espèces, sans SMS)
+  PAR_SMS // date et référence d'un paiement Wave / Orange Money (SMS, application)
+  A_LA_MAIN // date saisie par la trésorière (espèces, sans SMS)
 }
 
 enum StatutPaiement {
@@ -90,14 +98,15 @@ model Utilisatrice {
   nom       String   @db.VarChar(100)
   createdAt DateTime @default(now()) @map("created_at")
 
-  caisses   Caisse[]
-  personnes Personne[]
-  numeros   NumeroPersonne[]
-  paiements Paiement[]
-  journal   JournalAudit[]
-  smsNonLus SmsNonLu[]
-  depenses  Depense[]
-  dons      Don[]
+  caisses    Caisse[]
+  personnes  Personne[]
+  numeros    NumeroPersonne[]
+  paiements  Paiement[]
+  journal    JournalAudit[]
+  smsNonLus  SmsNonLu[]
+  depenses   Depense[]
+  dons       Don[]
+  mouvements MouvementCompte[]
 
   @@map("utilisatrices")
 }
@@ -115,11 +124,12 @@ model Caisse {
   statut            StatutCaisse @default(ACTIVE)
   createdAt         DateTime     @default(now()) @map("created_at")
 
-  owner    Utilisatrice   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  membres  MembreCaisse[]
-  cycles   Cycle[]
-  depenses Depense[]
-  dons     Don[]
+  owner      Utilisatrice      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  membres    MembreCaisse[]
+  cycles     Cycle[]
+  depenses   Depense[]
+  dons       Don[]
+  mouvements MouvementCompte[]
 
   @@index([ownerId])
   @@map("caisses")
@@ -171,9 +181,9 @@ model MembreCaisse {
   echeances Echeance[]
 
   @@unique([caisseId, personneId])
-  @@index([personneId])
   // Ordre de passage unique par caisse (tontines). NULL autorisé plusieurs fois (collectes).
   @@unique([caisseId, ordrePassage])
+  @@index([personneId])
   @@map("membres_caisse")
 }
 
@@ -215,39 +225,41 @@ model Echeance {
 }
 
 model Paiement {
-  id                  String         @id @default(uuid()) @db.Uuid
-  ownerId             String         @map("owner_id") @db.Uuid
-  personneId          String?        @map("personne_id") @db.Uuid // null tant que non identifié
+  id                  String           @id @default(uuid()) @db.Uuid
+  ownerId             String           @map("owner_id") @db.Uuid
+  personneId          String?          @map("personne_id") @db.Uuid // null tant que non identifié
   canal               Canal
   source              Source
   montant             Int
-  nomExpediteur       String?        @map("nom_expediteur") @db.VarChar(150)
-  telephoneExpediteur String?        @map("telephone_expediteur") @db.VarChar(9)
-  reference           String?        @db.VarChar(100)
-  dateReception       DateTime       @map("date_reception")
-  texteBrut           String?        @map("texte_brut")
-  statut              StatutPaiement @default(A_RAPPROCHER)
-  origine             OriginePaiement @default(CAPTURE)
+  nomExpediteur       String?          @map("nom_expediteur") @db.VarChar(150)
+  telephoneExpediteur String?          @map("telephone_expediteur") @db.VarChar(9)
+  reference           String?          @db.VarChar(100)
+  dateReception       DateTime         @map("date_reception")
+  texteBrut           String?          @map("texte_brut")
+  statut              StatutPaiement   @default(A_RAPPROCHER)
+  origine             OriginePaiement  @default(CAPTURE)
   /// Versés repris seulement (null pour une capture).
   datation            DatationReprise?
   /// SMS ignoré qui a servi à dater un versé repris (le même argent) : le versé daté. Ne revient jamais dans les comptes.
-  dateRepriseId       String?        @map("date_reprise_id") @db.Uuid
+  dateRepriseId       String?          @map("date_reprise_id") @db.Uuid
   /// Note libre de la trésorière : ne change jamais le comportement d'un paiement.
   note                String?
   // Excédent = montant − somme des allocations − bonne volonté éventuelle (calculé, jamais stocké).
   // rembourseLe marque cet excédent comme remboursé.
-  rembourseLe         DateTime?      @map("rembourse_le")
+  rembourseLe         DateTime?        @map("rembourse_le")
   // Date de validation du rapprochement (liste « Derniers rapprochés », 7 jours).
-  rapprocheLe         DateTime?      @map("rapproche_le")
-  createdAt           DateTime       @default(now()) @map("created_at")
+  rapprocheLe         DateTime?        @map("rapproche_le")
+  createdAt           DateTime         @default(now()) @map("created_at")
 
-  owner       Utilisatrice @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  personne    Personne?    @relation(fields: [personneId], references: [id], onDelete: SetNull)
-  allocations Allocation[]
+  owner           Utilisatrice     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  personne        Personne?        @relation(fields: [personneId], references: [id], onDelete: SetNull)
+  allocations     Allocation[]
   /// Part de l'excédent gardée comme bonne volonté (collecte).
-  don         Don?
-  repriseDatee Paiement?  @relation("DatationParSms", fields: [dateRepriseId], references: [id], onDelete: SetNull)
-  smsDatants   Paiement[] @relation("DatationParSms")
+  don             Don?
+  /// Versement sur un compte gardé fait de ce paiement (rapprochement).
+  mouvementCompte MouvementCompte?
+  repriseDatee    Paiement?        @relation("DatationParSms", fields: [dateRepriseId], references: [id], onDelete: SetNull)
+  smsDatants      Paiement[]       @relation("DatationParSms")
 
   @@unique([ownerId, canal, reference]) // anti-doublon (NULL autorisé plusieurs fois)
   @@index([ownerId, statut])
@@ -359,4 +371,27 @@ model TentativeConnexion {
 
   @@index([cle, createdAt])
   @@map("tentatives_connexion")
+}
+
+/// Mouvement d'un compte gardé (COMPTE_GARDE) : versement ou retrait, saisi à la main, importé, ou
+/// fait au rapprochement d'un paiement capturé (paiementId : jamais compté deux fois).
+model MouvementCompte {
+  id         String        @id @default(uuid()) @db.Uuid
+  ownerId    String        @map("owner_id") @db.Uuid
+  caisseId   String        @map("caisse_id") @db.Uuid
+  date       DateTime      @db.Date
+  montant    Int
+  sens       SensMouvement
+  canal      Canal
+  note       String?       @db.VarChar(200)
+  paiementId String?       @unique @map("paiement_id") @db.Uuid
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
+
+  owner    Utilisatrice @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  caisse   Caisse       @relation(fields: [caisseId], references: [id], onDelete: Cascade)
+  paiement Paiement?    @relation(fields: [paiementId], references: [id], onDelete: NoAction)
+
+  @@index([ownerId, caisseId, date])
+  @@map("mouvements_compte")
 }

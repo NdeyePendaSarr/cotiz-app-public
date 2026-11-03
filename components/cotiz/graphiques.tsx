@@ -1,4 +1,4 @@
-import { formaterFCFA } from "@/lib/format";
+import { formaterFCFA, formaterJourCourt } from "@/lib/format";
 import { LIBELLES_ETAT_CASE, type EtatCase, type LigneHistorique } from "@/lib/suivi/historique";
 import type { Rythme } from "@/lib/statistiques";
 import { cn } from "@/lib/utils";
@@ -367,4 +367,48 @@ export function phraseRythme(r: Rythme) {
   if (r.necessaireParJour === 0) return "Tout est reçu.";
   const ecart = r.ecart < 0 ? `En retard de ${formaterFCFA(-r.ecart)} sur le rythme` : r.ecart > 0 ? `En avance de ${formaterFCFA(r.ecart)} sur le rythme` : "Pile dans le rythme";
   return `${ecart} · il faut ${formaterFCFA(r.necessaireParJour)} par jour pour finir à temps`;
+}
+
+/**
+ * Courbe du solde d'un compte gardé, en marches (le solde change le jour d'un mouvement et reste
+ * jusqu'au suivant). Ligne zéro en pointillés : le solde peut devenir négatif (avance faite).
+ */
+export function CourbeSolde({ points, libelle }: { points: { date: Date; solde: number }[]; libelle: string }) {
+  if (points.length < 2) return null;
+  const L = 300;
+  const H = 100;
+  const debut = points[0].date.getTime();
+  const duree = Math.max(1, points[points.length - 1].date.getTime() - debut);
+  const max = Math.max(0, ...points.map((p) => p.solde));
+  const min = Math.min(0, ...points.map((p) => p.solde));
+  const ecart = Math.max(1, max - min);
+  const x = (d: Date) => ((d.getTime() - debut) / duree) * L;
+  const y = (s: number) => 4 + ((max - s) / ecart) * (H - 8);
+  // Marches : horizontale jusqu'au jour du mouvement, puis verticale jusqu'au nouveau solde.
+  const trace = points.map((p, i) => (i === 0 ? `M0,${y(p.solde).toFixed(1)}` : `H${x(p.date).toFixed(1)} V${y(p.solde).toFixed(1)}`)).join(" ");
+  const dernier = points[points.length - 1];
+  return (
+    <figure className="flex flex-col gap-1.5">
+      <svg viewBox={`0 0 ${L} ${H}`} preserveAspectRatio="none" aria-hidden className="h-28 w-full overflow-visible lg:h-36">
+        {min < 0 && <line x1={0} x2={L} y1={y(0)} y2={y(0)} className="stroke-avertissement" strokeWidth={1.5} strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />}
+        <path d={trace} fill="none" className={dernier.solde < 0 ? "stroke-retard" : "stroke-primary"} strokeWidth={2.5} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      </svg>
+      <figcaption className="flex justify-between text-xs text-muted-foreground">
+        <span>{formaterJourCourt(points[0].date)}</span>
+        {min < 0 && <span className="text-avertissement">pointillés : solde à zéro</span>}
+        <span className="font-medium text-foreground">{formaterJourCourt(dernier.date)}</span>
+      </figcaption>
+      <table className="sr-only">
+        <caption>{libelle}</caption>
+        <tbody>
+          {points.map((p) => (
+            <tr key={p.date.toISOString()}>
+              <th scope="row">{formaterJourCourt(p.date)}</th>
+              <td>{formaterFCFA(p.solde)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </figure>
+  );
 }

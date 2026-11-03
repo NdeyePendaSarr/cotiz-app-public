@@ -224,7 +224,7 @@ type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
  */
 async function reprendreVerse(
   tx: Tx,
-  p: { ownerId: string; caisse: { id: string; type: "TONTINE" | "COLLECTE" }; cycleId: string; personneId: string; montant: number; canal: Canal },
+  p: { ownerId: string; caisse: { id: string; type: "TONTINE" | "COLLECTE" | "COMPTE_GARDE" }; cycleId: string; personneId: string; montant: number; canal: Canal },
 ) {
   const echeance = await tx.echeance.findFirst({
     where: { cycleId: p.cycleId, membre: { personneId: p.personneId, caisse: { ownerId: p.ownerId } } },

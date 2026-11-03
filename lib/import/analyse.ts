@@ -48,7 +48,7 @@ function distinctes(a: { telephone: string | null; cellule: string | null }, b: 
 }
 
 export type ContexteCaisse = {
-  type: "TONTINE" | "COLLECTE";
+  type: "TONTINE" | "COLLECTE" | "COMPTE_GARDE";
   /** Ordres de passage déjà pris dans la caisse. */
   ordresPris: number[];
   /** Un cycle est ouvert : le versé peut y être enregistré (phase 10). */

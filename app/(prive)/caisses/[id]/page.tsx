@@ -30,6 +30,7 @@ import { construireHistorique, MAX_CYCLES_HISTORIQUE } from "@/lib/suivi/histori
 import { calculerSuivi } from "@/lib/suivi/cycle";
 import { rythmeCollectes } from "@/lib/statistiques";
 import { FormulaireOuvertureCycle } from "./formulaire-cycle";
+import { CompteGarde } from "./compte-garde";
 import { SelecteurCaisse } from "./selecteur-caisse";
 import { Cloture, SuiviCaisse, type ContexteSuivi } from "./suivi-caisse";
 import { FormulaireEchange } from "./formulaire-echange";
@@ -73,6 +74,11 @@ async function DetailCaisse({
     vueDemandee === "historique" ? historiqueCaisse(ownerId, idValide.data) : [],
   ]);
   if (!caisse) notFound(); // même réponse pour « n'existe pas » et « pas à toi »
+  // Compte gardé : ni cycle ni membres à suivre, sa propre page (solde, versements, retraits).
+  if (caisse.type === "COMPTE_GARDE") {
+    const selecteurCompte = caisses.length > 1 && <SelecteurCaisse caisseId={caisse.id} caisses={caisses} />;
+    return <CompteGarde ownerId={ownerId} caisseId={caisse.id} vue={typeof vueDemandee === "string" ? vueDemandee : undefined} selecteur={selecteurCompte} />;
+  }
 
   const archivee = caisse.statut === "ARCHIVEE";
   const collecte = caisse.type === "COLLECTE";

@@ -17,13 +17,13 @@ describe("schemaCaisse : tontine", () => {
   });
 
   it("modèle de relance : texte gardé, vide → null (modèle par défaut)", () => {
-    expect(schemaCaisse.parse({ ...tontine, modeleRelance: "  Bonjour {nom}  " }).modeleRelance).toBe("Bonjour {nom}");
-    expect(schemaCaisse.parse({ ...tontine, modeleRelance: "   " }).modeleRelance).toBeNull();
+    expect(versChampsCaisse(schemaCaisse.parse({ ...tontine, modeleRelance: "  Bonjour {nom}  " })).modeleRelance).toBe("Bonjour {nom}");
+    expect(versChampsCaisse(schemaCaisse.parse({ ...tontine, modeleRelance: "   " })).modeleRelance).toBeNull();
     expect(schemaCaisse.safeParse({ ...tontine, modeleRelance: "x".repeat(1001) }).success).toBe(false);
   });
 
   it.each(["25 000", "25.000", "25 000", " 25000 "])("lit le montant « %s » comme 25000", (saisie) => {
-    expect(schemaCaisse.parse({ ...tontine, montantCotisation: saisie }).montantCotisation).toBe(25_000);
+    expect(versChampsCaisse(schemaCaisse.parse({ ...tontine, montantCotisation: saisie })).montantCotisation).toBe(25_000);
   });
 
   it.each([
@@ -76,5 +76,21 @@ describe("versChampsCaisse", () => {
     const champs = versChampsCaisse(schemaCaisse.parse(collecte));
     expect(champs.frequence).toBeNull();
     expect(champs.jourEcheance).toBeNull();
+  });
+
+  it("un compte gardé : un nom et un titulaire, ni montant, ni échéance, ni relance", () => {
+    const titulaireId = "6f2c1f3e-8a7b-4c5d-9e0f-1a2b3c4d5e6f";
+    const saisie = schemaCaisse.parse({ type: "COMPTE_GARDE", nom: "  Épargne de Modou  ", titulaireId, montantCotisation: "999" });
+    expect(saisie).toEqual({ type: "COMPTE_GARDE", nom: "Épargne de Modou", titulaireId });
+    expect(versChampsCaisse(saisie)).toEqual({
+      nom: "Épargne de Modou",
+      montantCotisation: 0,
+      modeleRelance: null,
+      type: "COMPTE_GARDE",
+      frequence: null,
+      jourEcheance: null,
+      dateLimite: null,
+    });
+    expect(schemaCaisse.safeParse({ type: "COMPTE_GARDE", nom: "X", titulaireId: "pas-un-id" }).success).toBe(false);
   });
 });

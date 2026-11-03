@@ -12,6 +12,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { exigerUtilisatrice } from "@/lib/auth";
 import { aujourdhui } from "@/lib/cycles/dates";
 import { obtenirPersonne, situationPersonne } from "@/lib/donnees/personnes";
+import { resumesComptes } from "@/lib/donnees/comptes";
 import { historiquePersonne, verseDepuis } from "@/lib/donnees/suivi";
 import { statutEcheance } from "@/lib/echeances/statut";
 import { formaterDateHeure, formaterFCFA, LIBELLES_CANAL, LIBELLES_TYPE } from "@/lib/format";
@@ -41,10 +42,11 @@ async function FichePersonne({ params }: { params: Promise<{ id: string }> }) {
   const personne = idValide.success ? await obtenirPersonne(ownerId, idValide.data) : null;
   if (!personne) notFound();
   const annee = aujourdhui().getUTCFullYear();
-  const [{ parMembre, paiements }, entrees, verse] = await Promise.all([
+  const [{ parMembre, paiements }, entrees, verse, comptes] = await Promise.all([
     situationPersonne(ownerId, personne.id),
     historiquePersonne(ownerId, personne.id),
     verseDepuis(ownerId, personne.id, new Date(Date.UTC(annee, 0, 1))),
+    personne.membres.some((m) => m.caisse.type === "COMPTE_GARDE") ? resumesComptes(ownerId) : new Map<string, { solde: number }>(),
   ]);
   // Une grille par caisse : les numéros de cycle d'une caisse ne correspondent pas à ceux d'une autre.
   const parCaisse = [...new Set(entrees.map((e) => e.ligneId))].map((caisseId) => construireHistorique(entrees.filter((e) => e.ligneId === caisseId)));
@@ -105,6 +107,11 @@ async function FichePersonne({ params }: { params: Promise<{ id: string }> }) {
                       {m.caisse.statut === "ARCHIVEE" && " · caisse archivée"}
                     </span>
                     {statut && reste > 0 && <span className="text-sm font-bold text-retard">Reste {formaterFCFA(reste)}</span>}
+                    {comptes.has(m.caisse.id) && (
+                      <span className={cn("text-sm font-bold", comptes.get(m.caisse.id)!.solde < 0 && "text-retard")}>
+                        Solde {formaterFCFA(comptes.get(m.caisse.id)!.solde)}
+                      </span>
+                    )}
                   </span>
                   <span className="flex shrink-0 items-center gap-1">
                     {statut && <PastilleStatut statut={statut} />}

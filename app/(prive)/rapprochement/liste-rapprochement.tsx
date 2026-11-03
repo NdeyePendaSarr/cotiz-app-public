@@ -4,10 +4,11 @@ import { Check } from "lucide-react";
 import { useActionState, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import type { ResumePaiement } from "@/app/actions/capture";
-import { ignorerPaiement, validerRapprochement, validerSurs } from "@/app/actions/rapprochement";
+import { ignorerPaiement, validerRapprochement, validerSurs, verserSurCompte } from "@/app/actions/rapprochement";
 import { ChoixPersonne } from "@/components/cotiz/choix-personne";
 import { Repartition } from "@/components/cotiz/graphiques";
 import { Pastille } from "@/components/cotiz/pastille";
+import { CLASSE_LISTE } from "@/components/cotiz/styles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formaterDate, formaterFCFA } from "@/lib/format";
@@ -18,6 +19,8 @@ import { formaterTelephone } from "@/lib/telephone";
 import { normaliserNom } from "@/lib/texte";
 import { cn } from "@/lib/utils";
 import { CartePaiement } from "../capture/carte-paiement";
+
+type CompteGarde = { id: string; nom: string };
 
 export type PaiementARapprocher = ResumePaiement & { identification: Identification; reprise: boolean };
 
@@ -43,12 +46,15 @@ export function ListeRapprochement({
   personnes,
   echeancesParPersonne,
   payeesParImport,
+  comptesParPersonne,
 }: {
   paiements: PaiementARapprocher[];
   personnes: PersonneMatching[];
   echeancesParPersonne: Record<string, EcheanceDue[]>;
   /** Personnes déjà payées par la colonne « Versé » d'une liste importée : montant repris. */
   payeesParImport: Record<string, number>;
+  /** Comptes gardés actifs de chaque personne : un paiement peut y être versé en entier. */
+  comptesParPersonne: Record<string, CompteGarde[]>;
 }) {
   const parId = useMemo(() => new Map(personnes.map((p) => [p.id, p])), [personnes]);
   // Répartition sûre de chaque paiement (null : à vérifier). Le serveur refait tout au moment de valider.
@@ -79,7 +85,14 @@ export function ListeRapprochement({
   }
 
   const carte = (p: PaiementARapprocher) => (
-    <CarteRapprochement paiement={p} personnes={personnes} parId={parId} echeancesParPersonne={echeancesParPersonne} payeesParImport={payeesParImport} />
+    <CarteRapprochement
+      paiement={p}
+      personnes={personnes}
+      parId={parId}
+      echeancesParPersonne={echeancesParPersonne}
+      payeesParImport={payeesParImport}
+      comptesParPersonne={comptesParPersonne}
+    />
   );
 
   const validationGroupee = surs.length > 0 && (
@@ -233,14 +246,20 @@ function CarteRapprochement({
   parId,
   echeancesParPersonne,
   payeesParImport,
+  comptesParPersonne,
 }: {
   paiement: PaiementARapprocher;
   personnes: PersonneMatching[];
   parId: Map<string, PersonneMatching>;
   echeancesParPersonne: Record<string, EcheanceDue[]>;
   payeesParImport: Record<string, number>;
+  comptesParPersonne: Record<string, CompteGarde[]>;
 }) {
-  const [etat, envoyer, enCours] = useActionState(validerRapprochement.bind(null, paiement.id), undefined);
+  const [etatValidation, envoyer, enValidation] = useActionState(validerRapprochement.bind(null, paiement.id), undefined);
+  // Verser tout le paiement sur un compte gardé : même formulaire (personneId, compteId), autre action.
+  const [etatCompte, envoyerCompte, enVersement] = useActionState(verserSurCompte.bind(null, paiement.id), undefined);
+  const etat = etatCompte ?? etatValidation;
+  const enCours = enValidation || enVersement;
   const { identification } = paiement;
   const [personneId, setPersonneId] = useState<string | null>(identification.proposee);
   const [option, setOption] = useState(0);
@@ -287,6 +306,11 @@ function CarteRapprochement({
   const candidat = identification.candidats.find((c) => c.id === personneId);
   // Déjà payée par la colonne « Versé » d'une liste importée, plus rien de dû : sûrement le même argent.
   const dejaRepris = personne && dues.length === 0 ? payeesParImport[personne.id] : undefined;
+  const comptes = personneId ? (comptesParPersonne[personneId] ?? []) : [];
+  const [compteChoisi, setCompteChoisi] = useState<string | null>(null);
+  const compteId = comptes.find((c) => c.id === compteChoisi)?.id ?? comptes[0]?.id;
+  // Rien de dû mais un compte gardé : verser sur le compte devient l'action principale.
+  const compteEnAvant = comptes.length > 0 && dues.length === 0 && !dejaRepris;
 
   return (
     <form action={envoyer} className="flex flex-col gap-3 rounded-2xl bg-card p-4 ring-1 ring-border">
@@ -423,6 +447,26 @@ function CarteRapprochement({
         </label>
       )}
 
+      {personne && comptes.length > 0 && compteId && (
+        <section className="flex flex-col gap-2 rounded-xl bg-secondary/60 p-3">
+          <h3 className="text-sm font-semibold">Ou verser sur son compte gardé</h3>
+          <p className="text-xs text-muted-foreground">Tout le paiement ({formaterFCFA(paiement.montant)}) devient un versement sur le compte, pas une cotisation.</p>
+          {comptes.length > 1 && (
+            <select value={compteId} onChange={(e) => setCompteChoisi(e.target.value)} aria-label="Compte gardé" className={CLASSE_LISTE}>
+              {comptes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nom}
+                </option>
+              ))}
+            </select>
+          )}
+          <input type="hidden" name="compteId" value={compteId} />
+          <Button type="submit" formAction={envoyerCompte} variant={compteEnAvant ? "default" : "outline"} disabled={enCours} className="h-11 w-full text-base">
+            {enVersement ? "Versement…" : `Verser sur « ${comptes.find((c) => c.id === compteId)?.nom} »`}
+          </Button>
+        </section>
+      )}
+
       {dejaRepris && (
         <div role="status" className="flex flex-col gap-2 rounded-xl bg-avertissement/10 p-3 ring-1 ring-avertissement/30">
           <p className="text-sm">
@@ -435,16 +479,16 @@ function CarteRapprochement({
         </div>
       )}
 
-      {(etat?.erreur || probleme) && (
+      {(etat?.erreur || (probleme && !compteEnAvant)) && (
         <p role="alert" className="text-sm text-destructive">
           {etat?.erreur ?? probleme}
         </p>
       )}
 
       <div className="flex flex-col gap-2">
-        <Button type="submit" size="lg" variant={dejaRepris ? "outline" : "default"} disabled={!personne || Boolean(probleme) || enCours} className="text-base">
+        <Button type="submit" size="lg" variant={dejaRepris || compteEnAvant ? "outline" : "default"} disabled={!personne || Boolean(probleme) || enCours} className="text-base">
           <Check aria-hidden />
-          {enCours ? "Validation…" : "Valider"}
+          {enValidation ? "Validation…" : "Valider"}
         </Button>
         <div className="flex items-center justify-between gap-2">
           <Button type="button" variant="outline" disabled={!personne} onClick={() => (edition ? setEdition(null) : ouvrirEdition())} className="h-auto min-h-11 shrink text-sm whitespace-normal">

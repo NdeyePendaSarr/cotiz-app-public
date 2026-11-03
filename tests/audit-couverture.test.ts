@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 
 const RACINE = join(__dirname, "..");
 const DOSSIERS = ["app", "lib"];
-const MUTATION = /\b(tx|prisma)\.(paiement|allocation|smsNonLu|depense|don)\.(create|createMany|update|updateMany|delete|deleteMany|upsert)\s*\(/g;
+const MUTATION = /\b(tx|prisma)\.(paiement|allocation|smsNonLu|depense|don|mouvementCompte)\.(create|createMany|update|updateMany|delete|deleteMany|upsert)\s*\(/g;
 
 function fichiersTs(dossier: string): string[] {
   return readdirSync(dossier, { withFileTypes: true }).flatMap((e) => {
@@ -45,6 +45,7 @@ describe("couverture du journal d'audit", () => {
     expect(fichiers).toContain("app/actions/remboursement.ts");
     expect(fichiers).toContain("app/actions/depenses.ts");
     expect(fichiers).toContain("app/actions/dons.ts");
+    expect(fichiers).toContain("app/actions/comptes.ts");
   });
 
   it.each(mutations.map((m) => [`${m.fichier} › ${m.nom}`, m] as const))("%s journalise dans une transaction", (_nom, m) => {

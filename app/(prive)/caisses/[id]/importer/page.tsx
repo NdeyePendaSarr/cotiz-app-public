@@ -7,7 +7,9 @@ import { SqueletteFormulaire } from "@/components/cotiz/squelette";
 import { exigerUtilisatrice } from "@/lib/auth";
 import { obtenirCaisse } from "@/lib/donnees/caisses";
 import { schemaIdentifiant } from "@/lib/validation/caisse";
+import { importerHistoriqueCompte } from "@/app/actions/comptes";
 import { FormulaireImport } from "./formulaire-import";
+import { FormulaireImportCompte } from "./formulaire-import-compte";
 
 export const metadata: Metadata = { title: "Importer une liste · Cotiz" };
 
@@ -27,6 +29,20 @@ async function Import({ params }: { params: Promise<{ id: string }> }) {
   const idValide = schemaIdentifiant.safeParse(id);
   const caisse = idValide.success ? await obtenirCaisse(ownerId, idValide.data) : null;
   if (!caisse || caisse.statut !== "ACTIVE") notFound();
+
+  // Compte gardé : on reprend des versements et des retraits, pas une liste de membres.
+  if (caisse.type === "COMPTE_GARDE") {
+    return (
+      <>
+        <EnTete leger retour={{ href: `/caisses/${caisse.id}`, libelle: caisse.nom }} titre="Reprendre l'historique" surtitre="Compte gardé" />
+        <p className="text-muted-foreground">
+          Rien n&apos;est enregistré avant ta confirmation, après l&apos;aperçu. Un mouvement déjà dans Cotiz (même jour, même sens, même montant) n&apos;est
+          jamais compté deux fois.
+        </p>
+        <FormulaireImportCompte action={importerHistoriqueCompte.bind(null, caisse.id)} caisseId={caisse.id} />
+      </>
+    );
+  }
 
   return (
     <>

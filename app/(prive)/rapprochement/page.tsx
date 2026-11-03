@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { exigerUtilisatrice } from "@/lib/auth";
 import { derniersRapproches, echeancesDues, paiementsARapprocher, paiementsIgnores, personnesPourMatching } from "@/lib/donnees/rapprochement";
 import { payeesParImport } from "@/lib/donnees/suivi";
+import { comptesParPersonne } from "@/lib/donnees/comptes";
 import { excedentPaiement } from "@/lib/dons";
 import { formaterDateHeure, formaterFCFA } from "@/lib/format";
 import { identifierPersonne } from "@/lib/matching/personne";
@@ -33,13 +34,14 @@ const versResume = <T extends { dateReception: Date; personne: { nomComplet: str
 
 async function Contenu() {
   const { id: ownerId } = await exigerUtilisatrice();
-  const [paiements, personnes, dues, rapproches, ignores, repris] = await Promise.all([
+  const [paiements, personnes, dues, rapproches, ignores, repris, comptes] = await Promise.all([
     paiementsARapprocher(ownerId),
     personnesPourMatching(ownerId),
     echeancesDues(prisma, ownerId),
     derniersRapproches(ownerId),
     paiementsIgnores(ownerId),
     payeesParImport(prisma, ownerId),
+    comptesParPersonne(ownerId),
   ]);
 
   // Étape 1 faite ici (côté serveur) ; la répartition est recalculée dans la carte au besoin.
@@ -61,7 +63,7 @@ async function Contenu() {
           Tout est rapproché.
         </p>
       ) : (
-        <ListeRapprochement paiements={aRapprocher} personnes={personnes} echeancesParPersonne={dues} payeesParImport={repris} />
+        <ListeRapprochement paiements={aRapprocher} personnes={personnes} echeancesParPersonne={dues} payeesParImport={repris} comptesParPersonne={comptes} />
       )}
 
       {rapproches.length > 0 && (
@@ -69,15 +71,17 @@ async function Contenu() {
           <summary className="flex h-11 cursor-pointer items-center text-muted-foreground">Derniers rapprochés, 7 jours ({rapproches.length})</summary>
           <ul className="mt-2 flex flex-col gap-2">
             {rapproches.map((p) => {
-              const excedent = excedentPaiement(p.montant, p.allocations, p.don);
+              const excedent = excedentPaiement(p.montant, p.allocations, p.don, p.mouvementCompte);
               const cycleOuvert = p.allocations.every((a) => a.echeance.cycle.statut === "OUVERT");
               const annulable = cycleOuvert && !p.rembourseLe;
               return (
                 <li key={p.id}>
                   <CartePaiement paiement={versResume(p)} lienHistorique>
                     <span className="text-sm text-muted-foreground">
-                      {p.allocations.map((a) => `${a.echeance.cycle.caisse.nom}, cycle ${a.echeance.cycle.numero} : ${formaterFCFA(a.montant)}`).join(" · ") ||
-                        "Aucune échéance"}
+                      {p.mouvementCompte
+                        ? `Versé sur le compte « ${p.mouvementCompte.caisse.nom} » : ${formaterFCFA(p.mouvementCompte.montant)}`
+                        : p.allocations.map((a) => `${a.echeance.cycle.caisse.nom}, cycle ${a.echeance.cycle.numero} : ${formaterFCFA(a.montant)}`).join(" · ") ||
+                          "Aucune échéance"}
                     </span>
                     {p.don && <span className="text-sm text-paye">Bonne volonté : {formaterFCFA(p.don.montant)}</span>}
                     {excedent > 0 && (

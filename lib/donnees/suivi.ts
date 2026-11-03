@@ -82,7 +82,8 @@ export async function payeesParImport(client: Prisma.TransactionClient | typeof 
 /** Total des paiements de la personne reçus depuis une date (hors paiements ignorés). */
 export async function verseDepuis(ownerId: string, personneId: string, depuis: Date) {
   const { _sum } = await prisma.paiement.aggregate({
-    where: { ownerId, personneId, statut: { not: "IGNORE" }, dateReception: { gte: depuis } },
+    // L'argent qu'elle confie sur un compte gardé n'est pas une cotisation : exclu.
+    where: { ownerId, personneId, statut: { not: "IGNORE" }, mouvementCompte: null, dateReception: { gte: depuis } },
     _sum: { montant: true },
   });
   return _sum.montant ?? 0;
@@ -179,13 +180,14 @@ export async function excedentsARembourser(ownerId: string) {
       ...CHAMPS_RESUME,
       personneId: true,
       don: { select: { montant: true } },
+      mouvementCompte: { select: { montant: true } },
       allocations: { select: { montant: true, echeance: { select: { cycle: { select: { caisse: { select: { id: true, nom: true, type: true, statut: true } } } } } } } },
     },
   });
   return paiements
-    .map(({ allocations, don, ...p }) => ({
+    .map(({ allocations, don, mouvementCompte, ...p }) => ({
       ...p,
-      excedent: excedentPaiement(p.montant, allocations, don),
+      excedent: excedentPaiement(p.montant, allocations, don, mouvementCompte),
       collecte: don ? null : collecteDuDon(allocations),
       /** Réparti sur aucune échéance et sans bonne volonté : tout le paiement est en trop. */
       sansRepartition: allocations.length === 0 && !don,
@@ -207,6 +209,7 @@ export const compterARembourser = cache(async (ownerId: string) => {
       AND p.statut = 'RAPPROCHE'
       AND p.rembourse_le IS NULL
       AND p.montant > COALESCE((SELECT sum(a.montant) FROM allocations a WHERE a.paiement_id = p.id), 0)
-                    + COALESCE((SELECT d.montant FROM dons d WHERE d.paiement_id = p.id), 0)`;
+                    + COALESCE((SELECT d.montant FROM dons d WHERE d.paiement_id = p.id), 0)
+                    + COALESCE((SELECT m.montant FROM mouvements_compte m WHERE m.paiement_id = p.id), 0)`;
   return nombre;
 });
