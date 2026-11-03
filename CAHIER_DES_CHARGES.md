@@ -302,35 +302,35 @@ Deux moments dans la journée : capturer en 10 secondes quand l'argent arrive, r
 
 La v0 est terminée quand chaque case est cochée et qu'un vrai cycle a été géré avec l'app, sans cahier papier.
 
-État au 1er novembre 2026 : **tout est implémenté** et couvert par les tests automatiques (447 tests unitaires, 26 tests d'intégration). Une case n'est cochée qu'après vérification par la trésorière sur l'application en ligne ; les cases vides restent à confirmer en usage réel.
+État au 3 novembre 2026 : **tout est implémenté** et couvert par les tests automatiques (456 tests unitaires, 29 tests d'intégration). 21 critères sur 24 vérifiés par la trésorière. Une case n'est cochée qu'après vérification par la trésorière sur l'application en ligne ; les cases vides restent à confirmer en usage réel.
 
 - [x] Connexion et déconnexion par e-mail + mot de passe (comptes créés dans le tableau de bord Supabase).
 - [x] Une utilisatrice ne voit jamais les données d'une autre (testé avec 2 comptes).
 - [ ] 3 caisses créées, 30+ membres chacune, dont des personnes partagées non dupliquées.
-- [ ] Ouvrir un cycle crée les échéances de tous les membres actifs.
+- [x] Ouvrir un cycle crée les échéances de tous les membres actifs.
 - [x] Coller un SMS Wave réel crée un paiement avec montant, nom, numéro, date et référence corrects.
-- [ ] Coller deux fois le même SMS ne crée qu'un paiement.
-- [ ] Un SMS illisible est conservé en texte brut et signalé, sans planter.
-- [ ] Saisie manuelle fonctionnelle pour Wave, Orange Money et cash.
-- [ ] Un numéro connu propose la bonne personne ; un numéro inconnu peut être enregistré après confirmation.
-- [ ] Un paiement unique peut être réparti sur 2 caisses.
-- [ ] Statuts payé / partiel / en attente justes sur la page de chaque caisse.
+- [x] Coller deux fois le même SMS ne crée qu'un paiement.
+- [x] Un SMS illisible est conservé en texte brut et signalé, sans planter.
+- [x] Saisie manuelle fonctionnelle pour Wave, Orange Money et cash.
+- [x] Un numéro connu propose la bonne personne ; un numéro inconnu peut être enregistré après confirmation.
+- [x] Un paiement unique peut être réparti sur 2 caisses.
+- [x] Statuts payé / partiel / en attente justes sur la page de chaque caisse.
 - [x] Le bouton Relancer ouvre WhatsApp avec le bon numéro et le bon message.
 - [x] Chaque modification de paiement ou d'allocation apparaît dans le journal d'audit.
 - [x] Tous les tests Vitest passent (`npm test`).
 - [x] Déployé sur Vercel, utilisable sur Safari iPhone.
 
-- [ ] Une caisse `COLLECTE` accepte des versements par tranches et affiche payé / partiel / rien versé pour chaque membre.
-- [ ] Un excédent apparaît comme « à rembourser ».
+- [x] Une caisse `COLLECTE` accepte des versements par tranches et affiche payé / partiel / rien versé pour chaque membre.
+- [x] Un excédent apparaît comme « à rembourser ».
 
 **Ajouts en cours de v0**
 
-- [ ] L'import d'une liste Word (cellule, versé, canal) crée les membres et les versés sans doublon ; un réimport ne compte rien deux fois.
-- [ ] Dépenses et bonnes volontés d'une collecte : encaissé, dépensé et restant justes.
-- [ ] « Valider les sûrs » ne valide que des paiements sans décision à prendre.
-- [ ] Les versés importés peuvent être datés (SMS ignoré, SMS ou modèle Wave, modèle Orange Money, date à la main).
-- [ ] Deux validations simultanées du même paiement n'affectent jamais plus que son montant (testé : `tests/concurrence.integration.ts`).
-- [ ] Après 5 échecs de connexion en 15 minutes, l'adresse est bloquée un moment.
+- [x] L'import d'une liste Word (cellule, versé, canal) crée les membres et les versés sans doublon ; un réimport ne compte rien deux fois.
+- [x] Dépenses et bonnes volontés d'une collecte : encaissé, dépensé et restant justes.
+- [x] « Valider les sûrs » ne valide que des paiements sans décision à prendre.
+- [x] Les versés importés peuvent être datés (SMS ignoré, SMS ou modèle Wave, modèle Orange Money, date à la main).
+- [x] Deux validations simultanées du même paiement n'affectent jamais plus que son montant (testé : `tests/concurrence.integration.ts`).
+- [ ] Après 5 échecs de connexion en 15 minutes pour une adresse depuis un même réseau, cette adresse est bloquée un moment depuis ce réseau (30 échecs par réseau, toutes adresses confondues, bloquent le réseau). Un autre réseau n'est pas bloqué.
 - [ ] Un vrai cycle géré de bout en bout avec Cotiz, sans cahier papier.
 
 ## Instructions pour Claude Code
