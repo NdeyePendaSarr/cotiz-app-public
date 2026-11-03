@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { moyenneParJour, recuParCanal, recuParJour, totalReprises, type PaiementRecu } from "@/lib/statistiques";
+import { moyenneParJour, recuParCanal, recuParJour, rythmeCollectes, tendancesSemaine, totalReprises, type PaiementRecu } from "@/lib/statistiques";
 
 const jour = new Date("2026-10-21T00:00:00Z");
 const p = (iso: string, montant: number, canal: PaiementRecu["canal"] = "WAVE"): PaiementRecu => ({ dateReception: new Date(iso), montant, canal });
@@ -49,5 +49,50 @@ describe("versés repris d'un import", () => {
     expect(recuParJour(paiements, jour)[13]).toMatchObject({ montant: 3_000, nombre: 1 });
     expect(recuParCanal(paiements).find((c) => c.canal === "ORANGE_MONEY")?.montant).toBe(50_000);
     expect(totalReprises(paiements)).toBe(50_000);
+  });
+});
+
+describe("tendancesSemaine", () => {
+  it("compare les 7 derniers jours aux 7 d'avant (total et moyenne par jour)", () => {
+    const jours = recuParJour([p("2026-10-09T10:00:00Z", 7_000), p("2026-10-20T10:00:00Z", 14_000), p("2026-10-21T10:00:00Z", 7_000)], jour);
+    expect(tendancesSemaine(jours)).toEqual({
+      recu: { actuelle: 21_000, precedente: 7_000, ecart: 14_000 },
+      moyenne: { actuelle: 3_000, precedente: 1_000, ecart: 2_000 },
+    });
+  });
+});
+
+describe("rythmeCollectes (collectes seulement)", () => {
+  const debut = new Date("2026-10-14T00:00:00Z");
+  const echeance = new Date("2026-11-13T00:00:00Z"); // 30 jours
+  const auJour = (iso: string) => new Date(`${iso}T00:00:00Z`);
+
+  it("à mi-chemin, la moitié de l'attendu ; l'écart dit le retard ; le nécessaire par jour compte aujourd'hui", () => {
+    const r = rythmeCollectes([{ dateDebut: debut, dateEcheance: echeance, attendu: 160_000, recu: 27_000 }], auJour("2026-10-29"));
+    expect(r).toMatchObject({ attenduAujourdhui: 80_000, ecart: -53_000, echeancePassee: false });
+    expect(r?.necessaireParJour).toBe(Math.ceil(133_000 / 16)); // du 29/10 au 13/11 inclus
+  });
+
+  it("en avance : écart positif ; tout reçu : plus rien de nécessaire", () => {
+    expect(rythmeCollectes([{ dateDebut: debut, dateEcheance: echeance, attendu: 100_000, recu: 60_000 }], auJour("2026-10-29"))?.ecart).toBe(10_000);
+    expect(rythmeCollectes([{ dateDebut: debut, dateEcheance: echeance, attendu: 100_000, recu: 100_000 }], auJour("2026-10-29"))?.necessaireParJour).toBe(0);
+  });
+
+  it("le jour de l'ouverture, rien d'attendu ; après l'échéance, plus de rythme ; aucun cycle : null", () => {
+    expect(rythmeCollectes([{ dateDebut: debut, dateEcheance: echeance, attendu: 100_000, recu: 0 }], debut)?.attenduAujourdhui).toBe(0);
+    const passe = rythmeCollectes([{ dateDebut: debut, dateEcheance: echeance, attendu: 100_000, recu: 40_000 }], auJour("2026-11-20"));
+    expect(passe).toMatchObject({ echeancePassee: true, necessaireParJour: 0, attenduAujourdhui: 100_000 });
+    expect(rythmeCollectes([], debut)).toBeNull();
+  });
+
+  it("additionne plusieurs collectes", () => {
+    const r = rythmeCollectes(
+      [
+        { dateDebut: debut, dateEcheance: echeance, attendu: 60_000, recu: 30_000 },
+        { dateDebut: debut, dateEcheance: echeance, attendu: 40_000, recu: 0 },
+      ],
+      auJour("2026-10-29"),
+    );
+    expect(r).toMatchObject({ attendu: 100_000, recu: 30_000, attenduAujourdhui: 50_000, ecart: -20_000 });
   });
 });

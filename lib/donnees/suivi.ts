@@ -151,6 +151,7 @@ export async function cyclesOuverts(ownerId: string) {
     select: {
       id: true,
       numero: true,
+      dateDebut: true,
       dateEcheance: true,
       caisse: { select: { id: true, nom: true, type: true } },
       echeances: { select: { montantDu: true, allocations: { select: { montant: true } } } },

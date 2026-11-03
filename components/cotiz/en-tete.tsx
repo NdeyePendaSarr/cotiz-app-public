@@ -10,14 +10,24 @@ export const BOUTON_EN_TETE = cn(
 );
 
 /** Chiffre clé affiché côte à côte dans le bandeau, sur ordinateur. */
-export type ChiffreCle = { libelle: string; valeur: string; alerte?: boolean };
+export type ChiffreCle = {
+  libelle: string;
+  valeur: string;
+  /** Petite ligne sous le chiffre (« 17 % de 160 000 FCFA »). */
+  detail?: string;
+  /** Le chiffre que l'on cherche (restant en caisse) : en or. */
+  accent?: boolean;
+  alerte?: boolean;
+};
 
 /**
  * En-tête « héros » des pages de chiffres : bloc teal nuit qui prolonge la barre du haut et se termine
  * par un grand arrondi (charte de la refonte). Il sort de la colonne centrale (marges négatives calculées sur la largeur de l'écran)
  * pour occuper toute la largeur, le contenu restant centré sur max-w-md.
  * Sur ordinateur (lg) : bandeau arrondi dans la colonne, fil d'Ariane (« Caisses › Collecte ») et,
- * si `chiffres` est donné, les chiffres clés côte à côte en bas du bandeau (ils remplacent alors le grand montant).
+ * si `chiffres` est donné, les chiffres clés sur une ligne en bas du bandeau (ils remplacent alors le grand
+ * montant), avec `aCote` à leur gauche (anneau des statuts) et `action` à droite du titre : bandeau compact
+ * (retouches du 03/11/2026), le contenu de la page remonte.
  * `leger` (formulaires) : simple titre sur le fond de la page, sans bandeau (identité, lot 1).
  */
 export function EnTete({
@@ -29,6 +39,8 @@ export function EnTete({
   children,
   className,
   leger = false,
+  aCote,
+  action,
 }: {
   titre: React.ReactNode;
   /** Lien de retour affiché au-dessus du titre. */
@@ -43,6 +55,10 @@ export function EnTete({
   className?: string;
   /** En-tête léger, sans bandeau : pour les formulaires. */
   leger?: boolean;
+  /** Ordinateur : élément à gauche des chiffres (ex. anneau des statuts). */
+  aCote?: React.ReactNode;
+  /** Ordinateur : élément à droite du titre (ex. « Changer de caisse »). */
+  action?: React.ReactNode;
 }) {
   const avecChiffres = !leger && chiffres !== undefined && chiffres.length > 0;
   return (
@@ -79,7 +95,10 @@ export function EnTete({
               )}
             </nav>
           )}
-          <h1 className={cn("font-semibold tracking-tight lg:text-3xl", montant !== undefined ? "text-lg" : "text-2xl")}>{titre}</h1>
+          <div className="flex items-start justify-between gap-4">
+            <h1 className={cn("font-semibold tracking-tight lg:text-3xl", montant !== undefined ? "text-lg" : "text-2xl")}>{titre}</h1>
+            {action && <div className="hidden shrink-0 lg:block">{action}</div>}
+          </div>
           {surtitre && <p className={cn("text-sm lg:text-base", leger ? "text-muted-foreground" : "text-nuit-doux")}>{surtitre}</p>}
           {montant !== undefined && (
             <p className={cn("font-heading text-4xl font-bold tracking-tight lg:mt-2 lg:text-5xl", avecChiffres && "lg:hidden")}>{montant}</p>
@@ -87,14 +106,22 @@ export function EnTete({
           {children}
         </div>
         {avecChiffres && (
-          <dl className="mt-5 hidden grid-cols-2 gap-3 lg:grid xl:auto-cols-fr xl:grid-flow-col motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-500">
-            {chiffres.map((c) => (
-              <div key={c.libelle} className={cn("rounded-2xl bg-primary-foreground/12 px-4 py-3 ring-1 ring-primary-foreground/15", c.alerte && "bg-primary-foreground text-retard")}>
-                <dt className={cn("text-sm font-medium text-nuit-doux", c.alerte && "text-retard")}>{c.libelle}</dt>
-                <dd className="mt-1 font-heading text-2xl font-bold tracking-tight whitespace-nowrap">{c.valeur}</dd>
-              </div>
-            ))}
-          </dl>
+          <div className={cn("mt-4 hidden items-center gap-6 lg:grid", aCote ? "lg:grid-cols-[auto_minmax(0,1fr)]" : "lg:grid-cols-1")}>
+            {aCote}
+            {/* Une ligne, séparée par de fins traits (plus de cases) : lisible, et le bandeau reste bas. */}
+            <dl className={cn("grid grid-cols-3 gap-y-3 xl:auto-cols-fr xl:grid-flow-col", aCote && "border-l border-primary-foreground/20")}>
+              {chiffres.map((c, i) => (
+                <div
+                  key={c.libelle}
+                  className={cn("min-w-0 px-4", i > 0 && "xl:border-l xl:border-primary-foreground/20", c.alerte && "rounded-xl bg-primary-foreground py-1 text-retard")}
+                >
+                  <dt className={cn("truncate text-xs font-medium text-nuit-doux", c.alerte && "text-retard")}>{c.libelle}</dt>
+                  <dd className={cn("font-heading text-xl font-bold tracking-tight whitespace-nowrap", c.accent && !c.alerte && "text-or")}>{c.valeur}</dd>
+                  {c.detail && <dd className={cn("truncate text-xs text-nuit-doux", c.alerte && "text-retard")}>{c.detail}</dd>}
+                </div>
+              ))}
+            </dl>
+          </div>
         )}
       </div>
     </header>
@@ -102,7 +129,7 @@ export function EnTete({
 }
 
 /** Barre de progression or (l'argent reçu), à placer dans l'en-tête (reçu sur attendu). */
-export function Progression({ valeur, total, libelle }: { valeur: number; total: number; libelle: string }) {
+export function Progression({ valeur, total, libelle, className }: { valeur: number; total: number; libelle: string; className?: string }) {
   const pourcentage = total > 0 ? Math.min(100, Math.round((valeur / total) * 100)) : 0;
   return (
     <div
@@ -111,7 +138,7 @@ export function Progression({ valeur, total, libelle }: { valeur: number; total:
       aria-valuenow={pourcentage}
       aria-valuemin={0}
       aria-valuemax={100}
-      className="mt-3 h-2 overflow-hidden rounded-full bg-primary-foreground/20"
+      className={cn("mt-3 h-2 overflow-hidden rounded-full bg-primary-foreground/20", className)}
     >
       <div className="h-full rounded-full bg-or" style={{ width: `${pourcentage}%` }} />
     </div>

@@ -1,9 +1,9 @@
-import { ArrowLeftRight, CalendarCheck, ChevronRight, HandCoins, MessageSquareWarning } from "lucide-react";
+import { ArrowDownRight, ArrowLeftRight, ArrowUpRight, CalendarCheck, ChevronRight, HandCoins, MessageSquareWarning } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { EnTete } from "@/components/cotiz/en-tete";
-import { Anneau, Barres, Repartition } from "@/components/cotiz/graphiques";
+import { Anneau, Barres, JaugeRythme, Repartition } from "@/components/cotiz/graphiques";
 import { Bloc, LIGNE, Section } from "@/components/cotiz/section";
 import { Pastille } from "@/components/cotiz/pastille";
 import { SqueletteListe } from "@/components/cotiz/squelette";
@@ -16,7 +16,7 @@ import { paiementsRecus } from "@/lib/donnees/statistiques";
 import { compterARapprocher, datationsPossibles } from "@/lib/donnees/rapprochement";
 import { compterARembourser, cyclesOuverts } from "@/lib/donnees/suivi";
 import { formaterDate, formaterFCFA, formaterJourCourt, LIBELLES_CANAL, LIBELLES_TYPE } from "@/lib/format";
-import { moyenneParJour, recuParCanal, recuParJour, totalReprises } from "@/lib/statistiques";
+import { recuParCanal, recuParJour, rythmeCollectes, tendancesSemaine, totalReprises, type Tendance } from "@/lib/statistiques";
 import { resumerCycle } from "@/lib/suivi/cycle";
 import { cn } from "@/lib/utils";
 
@@ -54,6 +54,18 @@ async function Accueil() {
   const parCanal = recuParCanal(recus);
   const totalRecent = parCanal.reduce((s, c) => s + c.montant, 0);
   const reprises = totalReprises(recus);
+  const tendances = tendancesSemaine(parJour);
+  // Rythme : collectes seulement (règle validée le 03/11/2026 ; dans une tontine, on paie souvent juste avant l'échéance).
+  const collectes = resumes.filter((c) => c.caisse.type === "COLLECTE");
+  const rythme = rythmeCollectes(
+    collectes.map((c) => ({ dateDebut: c.dateDebut, dateEcheance: c.dateEcheance, attendu: c.r.attendu, recu: c.r.recu })),
+    jour,
+  );
+  // La ligne « nécessaire par jour » n'a de sens face aux barres que si tout l'argent attendu est celui de collectes.
+  const reference =
+    rythme && !rythme.echeancePassee && rythme.necessaireParJour > 0 && collectes.length === resumes.length
+      ? { valeur: rythme.necessaireParJour, libelle: "Nécessaire par jour pour finir à temps" }
+      : undefined;
 
   const aFaire = [
     { href: "/rapprochement", nombre: aRapprocher, singulier: "Paiement à rapprocher", pluriel: "Paiements à rapprocher", Icone: ArrowLeftRight },
@@ -88,18 +100,24 @@ async function Accueil() {
             </div>
           </dl>
         </div>
+        {rythme && (
+          <div className="mt-4">
+            <JaugeRythme rythme={rythme} titre={collectes.length === resumes.length ? "Rythme" : "Rythme des collectes"} />
+          </div>
+        )}
       </EnTete>
 
       <dl data-pleine-largeur className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl bg-border ring-1 ring-border lg:grid-cols-4">
         {[
-          { libelle: "Reste à recevoir", valeur: formaterFCFA(Math.max(0, attendu - recu)) },
-          { libelle: `Moyenne par jour (${JOURS_GRAPHIQUE} j)`, valeur: formaterFCFA(moyenneParJour(parJour)) },
-          { libelle: "Attendu", valeur: formaterFCFA(attendu) },
-          { libelle: "Cycles en cours", valeur: String(resumes.length) },
+          { libelle: "Reçu ces 7 jours", valeur: formaterFCFA(tendances.recu.actuelle), tendance: tendances.recu },
+          { libelle: "Moyenne par jour (7 j)", valeur: formaterFCFA(tendances.moyenne.actuelle), tendance: tendances.moyenne },
+          { libelle: "Reste à recevoir", valeur: formaterFCFA(Math.max(0, attendu - recu)), detail: `sur ${formaterFCFA(attendu)}` },
+          { libelle: "Cycles en cours", valeur: String(resumes.length), detail: `${collectes.length} collecte${collectes.length > 1 ? "s" : ""}` },
         ].map((c) => (
           <div key={c.libelle} className="bg-card px-4 py-3">
             <dt className="text-sm text-muted-foreground">{c.libelle}</dt>
             <dd className="font-heading text-lg font-bold whitespace-nowrap">{c.valeur}</dd>
+            {"tendance" in c && c.tendance ? <Evolution tendance={c.tendance} /> : <dd className="text-xs text-muted-foreground">{"detail" in c ? c.detail : null}</dd>}
           </div>
         ))}
       </dl>
@@ -110,17 +128,17 @@ async function Accueil() {
           <p className="text-muted-foreground">Rien en attente.</p>
         ) : (
           <>
-            <ul className="hidden gap-4 lg:grid lg:grid-cols-3">
+            {/* Ordinateur : pastilles sur une ligne (plus de carte seule avec un grand vide à côté). */}
+            <ul className="hidden flex-wrap gap-2 lg:flex">
               {aFaire.map(({ href, nombre, singulier, pluriel, Icone }) => (
                 <li key={href}>
-                  <Link href={href} className={CARTE}>
-                    <span className="flex size-11 items-center justify-center rounded-2xl bg-secondary text-primary">
-                      <Icone aria-hidden className="size-6" />
-                    </span>
-                    <span className="flex flex-col">
-                      <span className="text-3xl font-bold tracking-tight">{nombre}</span>
-                      <span className="text-sm font-medium text-muted-foreground">{nombre > 1 ? pluriel : singulier}</span>
-                    </span>
+                  <Link
+                    href={href}
+                    className="flex h-11 items-center gap-2 rounded-full bg-card pr-2 pl-4 text-sm font-medium ring-1 ring-border transition-colors hover:bg-secondary/40 hover:ring-primary/40"
+                  >
+                    <Icone aria-hidden className="size-4 text-primary" />
+                    {nombre > 1 ? pluriel : singulier}
+                    <span className="min-w-7 rounded-full bg-primary px-2 text-center text-xs leading-7 font-bold text-primary-foreground">{nombre}</span>
                   </Link>
                 </li>
               ))}
@@ -155,6 +173,7 @@ async function Accueil() {
               }))}
               debut={formaterJourCourt(parJour[0].date)}
               fin={`Aujourd'hui · ${formaterFCFA(parJour[parJour.length - 1].montant)}`}
+              reference={reference}
             />
             {reprises > 0 && (
               <p className="pt-3 text-xs text-muted-foreground">
@@ -279,6 +298,21 @@ const FOND_CANAL = { WAVE: "bg-graph-wave", ORANGE_MONEY: "bg-graph-om", CASH: "
 /** Carte de l'accueil sur ordinateur : sans ombre, se teinte au survol. */
 const CARTE =
   "flex h-full items-center gap-4 rounded-2xl bg-card p-5 ring-1 ring-border transition-all duration-200 hover:bg-secondary/40 hover:ring-primary/40";
+
+/** Évolution d'un chiffre face à la semaine d'avant : flèche et écart, vert en hausse, rouge en baisse. */
+function Evolution({ tendance }: { tendance: Tendance }) {
+  if (tendance.actuelle === 0 && tendance.precedente === 0) return <dd className="text-xs text-muted-foreground">rien sur 14 jours</dd>;
+  if (tendance.ecart === 0) return <dd className="text-xs text-muted-foreground">comme la semaine d&apos;avant</dd>;
+  const hausse = tendance.ecart > 0;
+  const Fleche = hausse ? ArrowUpRight : ArrowDownRight;
+  return (
+    <dd className={cn("flex items-center gap-0.5 text-xs font-medium", hausse ? "text-paye" : "text-retard")}>
+      <Fleche aria-hidden className="size-3.5" />
+      {hausse ? "+" : "−"}
+      {formaterFCFA(Math.abs(tendance.ecart))} vs semaine d&apos;avant
+    </dd>
+  );
+}
 
 /** Rattrapage : versés importés que l'on peut dater avec le SMS ignoré qui était le même argent. */
 async function BoutonDatation({ ownerId }: { ownerId: string }) {

@@ -9,7 +9,7 @@ import { changerStatutMembre } from "@/app/actions/membres";
 import { EnTete, Progression } from "@/components/cotiz/en-tete";
 import { Bloc, Section } from "@/components/cotiz/section";
 import { CasesChiffres } from "@/components/cotiz/cases-chiffres";
-import { Anneau, BarresHorizontales, Cascade, GrilleHistorique } from "@/components/cotiz/graphiques";
+import { Anneau, BarresHorizontales, Cascade, GrilleHistorique, JaugeRythme } from "@/components/cotiz/graphiques";
 import { TABLEAU } from "@/components/cotiz/styles";
 import { SqueletteListe } from "@/components/cotiz/squelette";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -28,6 +28,7 @@ import { plusPetitOrdreLibre } from "@/lib/ordre";
 import { historiqueCaisse, listerCaissesPourSelecteur, suiviCaisse } from "@/lib/donnees/suivi";
 import { construireHistorique, MAX_CYCLES_HISTORIQUE } from "@/lib/suivi/historique";
 import { calculerSuivi } from "@/lib/suivi/cycle";
+import { rythmeCollectes } from "@/lib/statistiques";
 import { FormulaireOuvertureCycle } from "./formulaire-cycle";
 import { SelecteurCaisse } from "./selecteur-caisse";
 import { Cloture, SuiviCaisse, type ContexteSuivi } from "./suivi-caisse";
@@ -84,6 +85,7 @@ async function DetailCaisse({
   // Sorties de caisse (phase 11, collectes) : cotisations + bonnes volontés − dépensé = restant.
   const bilan = collecte ? bilanCaisse(encaisse, depenses, dons.reduce((t, d) => t + d.montant, 0)) : null;
   const donateurs = donsParDonateur(dons);
+  const nbDonateurs = new Set(dons.map((d) => d.donateur.trim().toLowerCase())).size;
   const jour = aujourdhui();
   // Suivi du cycle ouvert (ou du dernier cycle d'une collecte terminée).
   const suivi = donnees ? calculerSuivi(donnees.lignes, donnees.cycle.dateEcheance, jour) : null;
@@ -123,9 +125,52 @@ async function DetailCaisse({
       ? libelleEcheance(caisse.frequence, caisse.jourEcheance)
       : caisse.dateLimite && `avant le ${formaterDate(caisse.dateLimite)}`;
 
+  // Anneau des statuts (lot 3) : sous le montant sur téléphone, à gauche des chiffres sur ordinateur.
+  const anneauStatuts = suivi && (
+    <div className="flex items-center gap-4">
+      <Anneau
+        taille={96}
+        epaisseur={16}
+        libelle={`${suivi.totaux.payes} payés, ${suivi.totaux.partiels} partiels, ${suivi.totaux.enAttente} en attente`}
+        segments={[
+          { libelle: "Payés", valeur: suivi.totaux.payes, trait: "stroke-anneau-paye" },
+          { libelle: "Partiels", valeur: suivi.totaux.partiels, trait: "stroke-anneau-partiel" },
+          { libelle: "En attente", valeur: suivi.totaux.enAttente, trait: "stroke-anneau-attente" },
+        ]}
+      >
+        <span className="font-heading text-lg leading-none font-bold">
+          {suivi.totaux.payes}/{suivi.actifs.length}
+        </span>
+        <span className="text-xs text-nuit-doux">à jour</span>
+      </Anneau>
+      <ul className="flex flex-col gap-1.5 text-sm">
+        {[
+          { libelle: "Payés", nombre: suivi.totaux.payes, fond: "bg-anneau-paye" },
+          { libelle: "Partiels", nombre: suivi.totaux.partiels, fond: "bg-anneau-partiel" },
+          { libelle: "En attente", nombre: suivi.totaux.enAttente, fond: "bg-anneau-attente" },
+        ].map((x) => (
+          <li key={x.libelle} className="flex items-center gap-2 whitespace-nowrap">
+            <span aria-hidden className={cn("size-2.5 rounded-[3px]", x.fond)} />
+            {x.libelle}
+            <span className="font-semibold">{x.nombre}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+  // Rythme : collecte ouverte seulement (règle validée le 03/11/2026).
+  const rythme =
+    collecte && suivi && donnees && donnees.cycle.statut === "OUVERT" && !archivee
+      ? rythmeCollectes([{ dateDebut: donnees.cycle.dateDebut, dateEcheance: donnees.cycle.dateEcheance, attendu: suivi.totaux.attendu, recu: suivi.totaux.recu }], jour)
+      : null;
+  const pourcentageRecu = suivi && suivi.totaux.attendu > 0 ? Math.round((suivi.totaux.recu / suivi.totaux.attendu) * 100) : 0;
+  const selecteur = caisses.length > 1 && <SelecteurCaisse caisseId={caisse.id} caisses={caisses} />;
+
   return (
     <>
       <EnTete
+        aCote={anneauStatuts}
+        action={selecteur}
         retour={RETOUR}
         titre={caisse.nom}
         surtitre={
@@ -137,15 +182,22 @@ async function DetailCaisse({
         chiffres={
           suivi
             ? [
-                { libelle: "Reçu", valeur: formaterFCFA(suivi.totaux.recu) },
-                { libelle: "Attendu", valeur: formaterFCFA(suivi.totaux.attendu) },
+                { libelle: "Reçu", valeur: formaterFCFA(suivi.totaux.recu), detail: `${pourcentageRecu} % de l'attendu` },
                 ...(bilan
                   ? [
-                      ...(bilan.dons > 0 ? [{ libelle: "Bonnes volontés", valeur: formaterFCFA(bilan.dons) }] : []),
-                      { libelle: "Dépensé", valeur: formaterFCFA(bilan.depense) },
-                      { libelle: bilan.depassement ? "Restant (dépassement)" : "Restant en caisse", valeur: formaterFCFA(bilan.restant), alerte: bilan.depassement },
+                      ...(bilan.dons > 0 ? [{ libelle: "Bonnes volontés", valeur: formaterFCFA(bilan.dons), detail: `${nbDonateurs} donateur${nbDonateurs > 1 ? "s" : ""}` }] : []),
+                      { libelle: "Encaissé", valeur: formaterFCFA(bilan.encaisse), detail: bilan.dons > 0 ? "cotisations + dons" : "cotisations" },
+                      { libelle: "Dépensé", valeur: formaterFCFA(bilan.depense), detail: `${depenses.length} dépense${depenses.length > 1 ? "s" : ""}` },
+                      {
+                        libelle: bilan.depassement ? "Restant (dépassement)" : "Restant",
+                        valeur: formaterFCFA(bilan.restant),
+                        detail: "en caisse",
+                        accent: true,
+                        alerte: bilan.depassement,
+                      },
                     ]
                   : [
+                      { libelle: "Attendu", valeur: formaterFCFA(suivi.totaux.attendu), detail: `cycle ${donnees?.cycle.numero ?? ""}` },
                       { libelle: "Reste à recevoir", valeur: formaterFCFA(Math.max(0, suivi.totaux.attendu - suivi.totaux.recu)) },
                       { libelle: "Membres à jour", valeur: `${suivi.totaux.payes} / ${suivi.actifs.length}` },
                     ]),
@@ -159,38 +211,9 @@ async function DetailCaisse({
             <p className="text-sm text-nuit-doux lg:hidden">
               sur {formaterFCFA(suivi.totaux.attendu)} attendus{archivee && " · caisse archivée"}
             </p>
-            <Progression valeur={suivi.totaux.recu} total={suivi.totaux.attendu} libelle="Part reçue sur ce cycle" />
-            {/* Anneau des statuts (lot 3) : payés, partiels, en attente, avec leur légende chiffrée. */}
-            <div className="mt-4 flex items-center gap-4">
-              <Anneau
-                taille={96}
-                epaisseur={16}
-                libelle={`${suivi.totaux.payes} payés, ${suivi.totaux.partiels} partiels, ${suivi.totaux.enAttente} en attente`}
-                segments={[
-                  { libelle: "Payés", valeur: suivi.totaux.payes, trait: "stroke-anneau-paye" },
-                  { libelle: "Partiels", valeur: suivi.totaux.partiels, trait: "stroke-anneau-partiel" },
-                  { libelle: "En attente", valeur: suivi.totaux.enAttente, trait: "stroke-anneau-attente" },
-                ]}
-              >
-                <span className="font-heading text-lg leading-none font-bold">
-                  {suivi.totaux.payes}/{suivi.actifs.length}
-                </span>
-                <span className="text-xs text-nuit-doux">à jour</span>
-              </Anneau>
-              <ul className="flex flex-col gap-1.5 text-sm">
-                {[
-                  { libelle: "Payés", nombre: suivi.totaux.payes, fond: "bg-anneau-paye" },
-                  { libelle: "Partiels", nombre: suivi.totaux.partiels, fond: "bg-anneau-partiel" },
-                  { libelle: "En attente", nombre: suivi.totaux.enAttente, fond: "bg-anneau-attente" },
-                ].map((s) => (
-                  <li key={s.libelle} className="flex items-center gap-2">
-                    <span aria-hidden className={cn("size-2.5 rounded-[3px]", s.fond)} />
-                    {s.libelle}
-                    <span className="font-semibold">{s.nombre}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            {/* Ordinateur : la part reçue est écrite sous « Reçu ». Collecte ouverte : la jauge de rythme la montre déjà. */}
+            <Progression valeur={suivi.totaux.recu} total={suivi.totaux.attendu} libelle="Part reçue sur ce cycle" className={rythme ? "hidden" : "lg:hidden"} />
+            <div className="mt-4 lg:hidden">{anneauStatuts}</div>
             {bilan && bilan.dons > 0 && <p className="mt-3 text-sm font-semibold lg:hidden">Bonnes volontés : {formaterFCFA(bilan.dons)}</p>}
             {bilan && (bilan.depense > 0 || bilan.dons > 0) && (
               <p className={cn("mt-3 text-sm font-semibold lg:hidden", bilan.depassement &&"rounded-xl bg-primary-foreground px-3 py-1.5 text-retard")}>
@@ -202,7 +225,12 @@ async function DetailCaisse({
         ) : (
           <p className="text-sm text-nuit-doux">par membre{echeance ? `, ${echeance}` : ""}</p>
         )}
-        {caisses.length > 1 && <SelecteurCaisse caisseId={caisse.id} caisses={caisses} />}
+        {rythme && (
+          <div className="mt-4">
+            <JaugeRythme rythme={rythme} />
+          </div>
+        )}
+        {selecteur && <div className="lg:hidden">{selecteur}</div>}
       </EnTete>
 
       {/* Onglets (audit, lot 1) : la liste des membres ne repousse plus dépenses et réglages tout en bas. */}

@@ -1,5 +1,6 @@
 import { formaterFCFA } from "@/lib/format";
 import { LIBELLES_ETAT_CASE, type EtatCase, type LigneHistorique } from "@/lib/suivi/historique";
+import type { Rythme } from "@/lib/statistiques";
 import { cn } from "@/lib/utils";
 
 // Graphiques maison (lot 3) : HTML et SVG rendus côté serveur, sans bibliothèque. Chaque marque
@@ -72,12 +73,39 @@ export function Anneau({
 
 export type Barre = { cle: string; libelle: string; valeur: number; /** Mise en avant (aujourd'hui). */ accent?: boolean };
 
-/** Barres verticales (un jour = une barre), de la plus ancienne à la plus récente. */
-export function Barres({ barres, libelle, debut, fin }: { barres: Barre[]; libelle: string; debut: string; fin: string }) {
-  const max = Math.max(1, ...barres.map((b) => b.valeur));
+/**
+ * Barres verticales (un jour = une barre), de la plus ancienne à la plus récente. `reference` :
+ * ligne pointillée horizontale (ex. ce qu'il faut recevoir par jour), sur la même échelle.
+ */
+export function Barres({
+  barres,
+  libelle,
+  debut,
+  fin,
+  reference,
+}: {
+  barres: Barre[];
+  libelle: string;
+  debut: string;
+  fin: string;
+  reference?: { valeur: number; libelle: string };
+}) {
+  const max = Math.max(1, ...barres.map((b) => b.valeur), reference?.valeur ?? 0);
   return (
     <figure className="flex flex-col gap-1.5">
-      <div aria-hidden className="flex h-28 items-end gap-1 border-b border-input lg:h-36">
+      {reference && (
+        <p className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span aria-hidden className="w-4 border-t-2 border-dashed border-avertissement" />
+          {reference.libelle} : <span className="font-semibold text-foreground">{formaterFCFA(reference.valeur)}</span>
+        </p>
+      )}
+      <div aria-hidden className="relative flex h-28 items-end gap-1 border-b border-input lg:h-36">
+        {reference && (
+          <div
+            className="pointer-events-none absolute inset-x-0 z-[1] border-t-2 border-dashed border-avertissement"
+            style={{ bottom: `${(reference.valeur / max) * 100}%` }}
+          />
+        )}
         {barres.map((b) => (
           <div key={b.cle} title={`${b.libelle} : ${formaterFCFA(b.valeur)}`} className="group flex h-full flex-1 items-end">
             <div
@@ -303,4 +331,40 @@ export function GrilleHistorique({
       </figcaption>}
     </figure>
   );
+}
+
+/**
+ * Jauge du rythme d'une ou plusieurs collectes, sur le bandeau teal nuit : la part reçue (or) et un
+ * repère blanc là où l'on devrait en être aujourd'hui si l'argent arrivait régulièrement jusqu'à
+ * l'échéance, avec une phrase qui dit l'écart et ce qu'il faut recevoir par jour.
+ */
+export function JaugeRythme({ rythme, titre = "Rythme" }: { rythme: Rythme; titre?: string }) {
+  const pc = (v: number) => (rythme.attendu > 0 ? Math.min(100, (v / rythme.attendu) * 100) : 0);
+  const repere = pc(rythme.attenduAujourdhui);
+  return (
+    <div className="flex flex-col gap-1.5">
+      <p className="text-sm text-nuit-doux">{titre}</p>
+      {!rythme.echeancePassee && (
+        <div
+          role="img"
+          aria-label={`${formaterFCFA(rythme.recu)} reçus ; ${formaterFCFA(rythme.attenduAujourdhui)} attendus aujourd'hui au rythme régulier`}
+          className="relative h-2.5 rounded-full bg-primary-foreground/20"
+        >
+          <div className="h-full rounded-full bg-or" style={{ width: `${pc(rythme.recu)}%` }} />
+          <div aria-hidden className="absolute -top-1 h-[18px] w-0.5 -translate-x-1/2 rounded bg-primary-foreground" style={{ left: `${repere}%` }} />
+        </div>
+      )}
+      <p className="text-sm font-medium text-or">
+        {phraseRythme(rythme)}
+      </p>
+    </div>
+  );
+}
+
+/** « En retard de 43 000 FCFA sur le rythme · il faut 51 300 FCFA par jour pour finir à temps » (pur, testé). */
+export function phraseRythme(r: Rythme) {
+  if (r.echeancePassee) return r.recu >= r.attendu ? "Échéance passée : tout est reçu." : `Échéance passée : ${formaterFCFA(r.attendu - r.recu)} restent à recevoir.`;
+  if (r.necessaireParJour === 0) return "Tout est reçu.";
+  const ecart = r.ecart < 0 ? `En retard de ${formaterFCFA(-r.ecart)} sur le rythme` : r.ecart > 0 ? `En avance de ${formaterFCFA(r.ecart)} sur le rythme` : "Pile dans le rythme";
+  return `${ecart} · il faut ${formaterFCFA(r.necessaireParJour)} par jour pour finir à temps`;
 }
