@@ -308,7 +308,7 @@ async function DetailCaisse({
                         <span className="font-semibold">{d.donateur}</span>
                         <span className="text-xs text-muted-foreground">
                           {formaterDate(d.date)} · {LIBELLES_CANAL[d.canal]}
-                          {d.remisPar && ` · remis par ${d.remisPar}`}
+                          {d.remisPar && ` · remis à ${d.remisPar}`}
                           {d.note && ` · ${d.note}`}
                         </span>
                       </span>
@@ -322,7 +322,7 @@ async function DetailCaisse({
                     <tr>
                       <th scope="col" className={TABLEAU.colonne}>Date</th>
                       <th scope="col" className={TABLEAU.colonne}>De la part de</th>
-                      <th scope="col" className={TABLEAU.colonne}>Remis par</th>
+                      <th scope="col" className={TABLEAU.colonne}>Remis à</th>
                       <th scope="col" className={TABLEAU.colonne}>Canal</th>
                       <th scope="col" className={TABLEAU.colonne}>Note</th>
                       <th scope="col" className={cn(TABLEAU.colonne, "pr-0 text-right")}>Montant</th>

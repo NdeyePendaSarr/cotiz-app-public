@@ -2,7 +2,7 @@ import { z } from "zod";
 import { Canal } from "@/lib/generated/prisma/enums";
 import { schemaMontant } from "@/lib/validation/montant";
 
-// Bonne volonté (don à une collecte) : date, montant, donateur (nom libre), remis par (intermédiaire), canal, note.
+// Bonne volonté (don à une collecte) : date, montant, donateur (nom libre), remis à (la personne qui a reçu le don quand il n'a pas été donné directement à la trésorière), canal, note.
 
 export const CHAMPS_DON = ["date", "montant", "donateur", "remisPar", "canal", "note"] as const;
 

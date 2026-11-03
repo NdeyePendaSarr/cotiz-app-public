@@ -333,7 +333,7 @@ model Don {
   montant    Int
   /// Nom libre (« ABK », « Ibou ») : pas forcément une personne de Cotiz.
   donateur   String   @db.VarChar(150)
-  /// Qui a remis l'argent à la trésorière (« ABK », « Lamine ») quand il ne lui a pas été envoyé directement.
+  /// « Remis à » : la personne à qui le don a été remis (« ABK », « Lamine ») quand il n'a pas été donné directement à la trésorière.
   remisPar   String?  @map("remis_par") @db.VarChar(150)
   canal      Canal
   note       String?  @db.VarChar(200)

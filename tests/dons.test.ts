@@ -36,7 +36,7 @@ describe("schemaDon", () => {
     expect(schemaDon.parse(valide)).toEqual({ date: new Date("2026-10-31T00:00:00.000Z"), montant: 30_000, donateur: "Ibou", remisPar: null, canal: "WAVE", note: null });
   });
 
-  it("« Remis par » : l'intermédiaire, nettoyé ; vide = envoyé directement", () => {
+  it("« Remis à » : la personne qui a reçu le don, nettoyé ; vide = remis directement", () => {
     expect(schemaDon.parse({ ...valide, remisPar: "  Lamine " }).remisPar).toBe("Lamine");
     expect(schemaDon.safeParse({ ...valide, remisPar: "x".repeat(151) }).success).toBe(false);
   });

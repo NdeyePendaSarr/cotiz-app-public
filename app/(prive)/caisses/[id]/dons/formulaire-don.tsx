@@ -31,8 +31,8 @@ export function FormulaireDon({ action, valeursInitiales, libelleBouton }: { act
           <Input id="date" name="date" type="date" defaultValue={v.date} aria-invalid={Boolean(e.date)} className="text-base" />
         </Champ>
       </div>
-      <Champ id="remisPar" libelle="Remis par (facultatif)" erreur={e.remisPar}>
-        <Input id="remisPar" name="remisPar" defaultValue={v.remisPar} maxLength={150} placeholder="Vide si l'argent t'a été envoyé directement" aria-invalid={Boolean(e.remisPar)} className="text-base" />
+      <Champ id="remisPar" libelle="Remis à (facultatif)" erreur={e.remisPar}>
+        <Input id="remisPar" name="remisPar" defaultValue={v.remisPar} maxLength={150} placeholder="Vide si le don t'a été remis directement" aria-invalid={Boolean(e.remisPar)} className="text-base" />
       </Champ>
       <Champ id="canal" libelle="Canal" erreur={e.canal}>
         <select id="canal" name="canal" defaultValue={v.canal} aria-invalid={Boolean(e.canal)} className={CLASSE_LISTE}>
