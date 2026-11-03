@@ -158,3 +158,23 @@ describe("excédents (audit, lot 1)", () => {
     expect(apres.allocations).toHaveLength(1);
   });
 });
+
+describe("datation des versés repris (audit du 03/11/2026)", () => {
+  it("deux datations simultanées avec le même SMS : une seule passe, le SMS ne date qu'un versé", async () => {
+    const { daterRepriseALaMain } = await import("@/app/actions/datation");
+    const reprise = () =>
+      prisma.paiement.create({
+        data: { ownerId, canal: "WAVE", source: "SAISIE_MANUELLE", montant: 2_000, personneId, statut: "RAPPROCHE", rapprocheLe: new Date(), dateReception: new Date(), origine: "REPRISE_IMPORT", datation: "NON_DATEE" },
+      });
+    const [r1, r2] = [await reprise(), await reprise()];
+    const sms = await prisma.paiement.create({
+      data: { ownerId, canal: "WAVE", source: "SMS_WAVE", montant: 2_000, statut: "IGNORE", reference: `T_${randomUUID()}`, dateReception: new Date(Date.now() - 3 * JOUR) },
+    });
+
+    await Promise.all([r1, r2].map((r) => daterRepriseALaMain(r.id, formulaire({ smsId: sms.id }))));
+
+    const datees = await prisma.paiement.findMany({ where: { id: { in: [r1.id, r2.id] }, datation: "PAR_SMS" }, select: { id: true } });
+    expect(datees).toHaveLength(1);
+    expect((await prisma.paiement.findUniqueOrThrow({ where: { id: sms.id } })).dateRepriseId).toBe(datees[0].id);
+  });
+});

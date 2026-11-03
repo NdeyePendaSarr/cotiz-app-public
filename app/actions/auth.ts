@@ -1,7 +1,8 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { connexionBloquee, FENETRE_MINUTES, noterEchec, oublierEchecs } from "@/lib/connexion/tentatives";
+import { connexionBloquee, FENETRE_MINUTES, noterEchec, oublierEchecs, reseauDepuisEntetes } from "@/lib/connexion/tentatives";
 import { creerClientSupabase } from "@/lib/supabase/serveur";
 import { schemaConnexion } from "@/lib/validation/auth";
 
@@ -15,8 +16,10 @@ export async function seConnecter(_etat: EtatConnexion, formData: FormData): Pro
   const emailSaisi = String(formData.get("email") ?? "");
   if (!saisie.success) return { erreur: saisie.error.issues[0].message, email: emailSaisi };
 
-  // Trop d'essais ratés pour cette adresse : refus sans interroger Supabase (audit, lot 2).
-  if (await connexionBloquee(saisie.data.email)) {
+  // Trop d'essais ratés pour cette adresse depuis ce réseau, ou pour ce réseau : refus sans
+  // interroger Supabase (audit, lot 2 ; voir lib/connexion/tentatives.ts).
+  const origine = { email: saisie.data.email, reseau: reseauDepuisEntetes(await headers()) };
+  if (await connexionBloquee(origine)) {
     return { erreur: `Trop d'essais. Réessaie dans ${FENETRE_MINUTES} minutes.`, email: emailSaisi };
   }
 
@@ -27,10 +30,10 @@ export async function seConnecter(_etat: EtatConnexion, formData: FormData): Pro
   });
   // Message volontairement vague : ne pas révéler si l'adresse a un compte.
   if (error) {
-    await noterEchec(saisie.data.email);
+    await noterEchec(origine);
     return { erreur: "E-mail ou mot de passe incorrect.", email: emailSaisi };
   }
-  await oublierEchecs(saisie.data.email);
+  await oublierEchecs(origine);
 
   redirect("/tableau-de-bord");
 }

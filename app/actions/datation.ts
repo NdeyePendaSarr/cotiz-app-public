@@ -10,10 +10,11 @@ import { aujourdhui, ajouterJours } from "@/lib/cycles/dates";
 import { CAPTURE_IGNOREE_LIBRE, REPRISE_NON_DATEE } from "@/lib/paiements/origine";
 import { schemaIdentifiant } from "@/lib/validation/caisse";
 import { lireModeleOrangeMoney } from "@/lib/capture/modele-orange-money";
-import { lireModeleWave } from "@/lib/capture/modele-wave";
+import { lireModeleWave, normaliserReferenceWave } from "@/lib/capture/modele-wave";
 import { preparerCaptureSms } from "@/lib/capture/sms";
 import { formaterDate, formaterFCFA, LIBELLES_CANAL } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
+import { verrouillerPaiement, verrouillerPaiementParReference, verrouillerPaiements } from "@/lib/verrous";
 
 /**
  * Rattrapage après un import : chaque versé repris de la liste reçoit la date du SMS ignoré qui
@@ -29,6 +30,9 @@ export async function daterRepriseParSms() {
   let dates = 0;
   for (const d of datations) {
     const fait = await prisma.$transaction(async (tx) => {
+      // Verrous : le versé, puis ses SMS (une datation simultanée attend, puis les voit déjà pris).
+      if (!(await verrouillerPaiement(tx, ownerId, d.repriseId, ["RAPPROCHE"]))) return false;
+      await verrouillerPaiements(tx, ownerId, d.smsIds);
       const reprise = await tx.paiement.findFirst({ where: { id: d.repriseId, ownerId, ...REPRISE_NON_DATEE, statut: "RAPPROCHE" }, select: { id: true, montant: true } });
       if (!reprise) return false;
       const sms = await tx.paiement.findMany({
@@ -55,14 +59,6 @@ export async function daterRepriseParSms() {
 /** Retour des formulaires Wave et Orange Money de la page « Dater les versés » (useActionState). */
 export type EtatDatationWave = { erreur?: string; conflit?: { message: string; rattachable: boolean } } | undefined;
 
-/**
- * Référence d'un paiement Wave sous une seule forme : l'ID de transaction de l'application
- * (« T_QWE…U-IOP… ») est la référence du SMS (« TQWE…UIOP… ») avec des « _ » et « - » en plus.
- */
-export async function normaliserReference(texte: string) {
-  return texte.toUpperCase().replace(/[\s_-]/g, "");
-}
-
 const LIBELLES_STATUT_PAIEMENT = { A_RAPPROCHER: "à rapprocher", RAPPROCHE: "rapproché", IGNORE: "ignoré" } as const;
 
 /**
@@ -84,6 +80,9 @@ async function daterParReference(
 ): Promise<EtatDatationWave> {
   const nomCanal = LIBELLES_CANAL[d.canal];
   const resultat = await prisma.$transaction(async (tx): Promise<EtatDatationWave | null> => {
+    // Verrous : le versé, puis le paiement qui porte déjà cette référence (lu ensuite, à jour).
+    if (!(await verrouillerPaiement(tx, ownerId, repriseId, ["RAPPROCHE"]))) return { erreur: "Ce versé a déjà été daté." };
+    if (d.reference) await verrouillerPaiementParReference(tx, ownerId, d.canal, d.reference);
     const reprise = await tx.paiement.findFirst({ where: { id: repriseId, ownerId, ...REPRISE_NON_DATEE, statut: "RAPPROCHE" }, select: { id: true, montant: true, canal: true } });
     if (!reprise) return { erreur: "Ce versé a déjà été daté." };
     if (reprise.canal !== d.canal) return { erreur: `Ce versé n'est pas un paiement ${nomCanal} : saisis plutôt la date.` };
@@ -108,6 +107,7 @@ async function daterParReference(
       } else if (estReprise || deja.dateRepriseId) {
         // Versé qui porte déjà cette référence, ou versé daté par ce SMS (lien dateRepriseId).
         const autreId = estReprise ? deja.id : deja.dateRepriseId;
+        if (autreId) await verrouillerPaiements(tx, ownerId, [autreId]);
         const autre = autreId
           ? await tx.paiement.findFirst({
               where: { id: autreId, ownerId, origine: "REPRISE_IMPORT" },
@@ -178,7 +178,7 @@ export async function daterRepriseAvecSms(repriseId: string, _etat: EtatDatation
   return daterParReference(
     ownerId,
     id.data,
-    { canal: "WAVE", montant, dateReception, reference: reference ? await normaliserReference(reference) : null, source: "SMS" },
+    { canal: "WAVE", montant, dateReception, reference: reference ? normaliserReferenceWave(reference) : null, source: "SMS" },
     formData.get("rattacher") === "1",
   );
 }
@@ -244,6 +244,9 @@ export async function daterRepriseALaMain(repriseId: string, formData: FormData)
   }
 
   const fait = await prisma.$transaction(async (tx) => {
+    // Verrous : le versé, puis le SMS choisi (deux datations simultanées avec le même SMS : une seule passe).
+    if (!(await verrouillerPaiement(tx, ownerId, id.data, ["RAPPROCHE"]))) return false;
+    if (smsId.success) await verrouillerPaiements(tx, ownerId, [smsId.data]);
     const reprise = await tx.paiement.findFirst({ where: { id: id.data, ownerId, ...REPRISE_NON_DATEE, statut: "RAPPROCHE" }, select: { id: true } });
     if (!reprise) return false;
     if (smsId.success) {

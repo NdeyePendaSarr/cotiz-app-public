@@ -18,12 +18,19 @@ export function modeleWave(p: { montant: number; nom: string | null; numero: str
 }
 
 /**
+ * Référence d'un paiement Wave sous une seule forme : l'ID de transaction de l'application
+ * (« T_QWE…U-IOP… ») est la référence du SMS (« TQWE…UIOP… ») avec des « _ » et « - » en plus.
+ */
+export function normaliserReferenceWave(texte: string) {
+  return texte.toUpperCase().replace(/[\s_-]/g, "");
+}
+
+/**
  * Sépare le modèle rempli : le texte au format SMS (lu ensuite comme un SMS Wave) et l'ID de
  * transaction, ramené à la forme de la référence des SMS (« T_QWE…U-IOP… » → « TQWE…UIOP… »).
  */
 export function lireModeleWave(texte: string): { texteSms: string; reference: string | null } {
   const m = LIGNE_ID.exec(texte);
-  const brut = m?.[1] ?? "";
-  const reference = brut.toUpperCase().replace(/[\s_-]/g, "");
+  const reference = normaliserReferenceWave(m?.[1] ?? "");
   return { texteSms: texte.replace(LIGNE_ID, ""), reference: /^[A-Z0-9]{8,30}$/.test(reference) ? reference : null };
 }

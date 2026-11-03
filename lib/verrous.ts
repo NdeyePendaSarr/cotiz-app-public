@@ -20,6 +20,27 @@ export async function verrouillerPaiement(tx: Tx, ownerId: string, paiementId: s
   return lignes.length === 1;
 }
 
+/**
+ * Verrouille des paiements de l'utilisatrice, quel que soit leur statut (datation : SMS choisis,
+ * autre versé). Dans l'ordre des id : deux transactions qui visent les mêmes ne s'interbloquent pas.
+ */
+export async function verrouillerPaiements(tx: Tx, ownerId: string, ids: string[]) {
+  if (ids.length === 0) return;
+  await tx.$queryRaw`
+    SELECT id FROM paiements
+    WHERE id = ANY(${ids}::uuid[]) AND owner_id = ${ownerId}::uuid
+    ORDER BY id
+    FOR UPDATE`;
+}
+
+/** Verrouille le paiement de ce canal qui porte cette référence, s'il existe (datation par référence). */
+export async function verrouillerPaiementParReference(tx: Tx, ownerId: string, canal: "WAVE" | "ORANGE_MONEY", reference: string) {
+  await tx.$queryRaw`
+    SELECT id FROM paiements
+    WHERE owner_id = ${ownerId}::uuid AND canal::text = ${canal} AND reference = ${reference}
+    FOR UPDATE`;
+}
+
 /** Verrouille toutes les échéances d'une personne (dans les caisses de l'utilisatrice) avant de lire son reste dû. */
 export async function verrouillerEcheancesDePersonne(tx: Tx, ownerId: string, personneId: string) {
   await tx.$queryRaw`
