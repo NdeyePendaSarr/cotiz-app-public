@@ -108,19 +108,32 @@ export function EnTete({
         {avecChiffres && (
           <div className={cn("mt-4 hidden items-center gap-6 lg:grid", aCote ? "lg:grid-cols-[auto_minmax(0,1fr)]" : "lg:grid-cols-1")}>
             {aCote}
-            {/* Une ligne, séparée par de fins traits (plus de cases) : lisible, et le bandeau reste bas. */}
-            <dl className={cn("grid grid-cols-3 gap-y-3 xl:auto-cols-fr xl:grid-flow-col", aCote && "border-l border-primary-foreground/20")}>
+            {/* Chiffres séparés par de fins traits (plus de cases). Sur une ligne seulement si la place le permet
+                (@2xl : 42 rem, mesurée sur le bloc lui-même), sinon 3 + 2 ; la taille suit la place : jamais de débordement. */}
+            <div className={cn("@container min-w-0", aCote && "border-l border-primary-foreground/20")}>
+            <dl className="grid grid-cols-3 gap-y-3 @2xl:auto-cols-fr @2xl:grid-flow-col @2xl:grid-cols-none">
               {chiffres.map((c, i) => (
                 <div
                   key={c.libelle}
-                  className={cn("min-w-0 px-4", i > 0 && "xl:border-l xl:border-primary-foreground/20", c.alerte && "rounded-xl bg-primary-foreground py-1 text-retard")}
+                  className={cn("min-w-0 px-3", i > 0 && "@2xl:border-l @2xl:border-primary-foreground/20", c.alerte && "rounded-xl bg-primary-foreground py-1 text-retard")}
                 >
                   <dt className={cn("truncate text-xs font-medium text-nuit-doux", c.alerte && "text-retard")}>{c.libelle}</dt>
-                  <dd className={cn("font-heading text-xl font-bold tracking-tight whitespace-nowrap", c.accent && !c.alerte && "text-or")}>{c.valeur}</dd>
+                  {/* « FCFA » en petit : le nombre reste lisible et la colonne étroite. */}
+                  <dd className={cn("font-heading text-base font-bold tracking-tight whitespace-nowrap @4xl:text-lg @6xl:text-xl", c.accent && !c.alerte && "text-or")}>
+                    {c.valeur.endsWith(" FCFA") ? (
+                      <>
+                        {c.valeur.slice(0, -5)}
+                        <span className="ml-1 text-xs font-semibold">FCFA</span>
+                      </>
+                    ) : (
+                      c.valeur
+                    )}
+                  </dd>
                   {c.detail && <dd className={cn("truncate text-xs text-nuit-doux", c.alerte && "text-retard")}>{c.detail}</dd>}
                 </div>
               ))}
             </dl>
+            </div>
           </div>
         )}
       </div>
