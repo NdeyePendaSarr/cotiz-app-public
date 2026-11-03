@@ -17,6 +17,8 @@ enum TypeCaisse {
   COLLECTE
   /// Argent gardé pour une personne (versements et retraits, sans échéance) : solde = versé − retiré.
   COMPTE_GARDE
+  /// Cotisation mensuelle sur une durée fixe (ex. 500 FCFA × 12 mois), sans ordre de passage ; dépenses et dons comme une collecte.
+  MENSUALITE
 }
 
 /// Sens d'un mouvement de compte gardé.
@@ -120,6 +122,9 @@ model Caisse {
   frequence         Frequence? // null pour une COLLECTE
   dateLimite        DateTime?    @map("date_limite") @db.Date // COLLECTE
   jourEcheance      Int?         @map("jour_echeance")
+  /// MENSUALITE : premier jour du premier mois et nombre de mois (dateLimite = dernier jour du dernier mois).
+  moisDebut         DateTime?    @map("mois_debut") @db.Date
+  nombreMois        Int?         @map("nombre_mois")
   modeleRelance     String?      @map("modele_relance") // null = modèle par défaut du code
   statut            StatutCaisse @default(ACTIVE)
   createdAt         DateTime     @default(now()) @map("created_at")

@@ -1,3 +1,6 @@
+import { avecDepenses } from "@/lib/depenses";
+import type { TypeCaisse } from "@/lib/generated/prisma/enums";
+
 // Bonnes volontés : règles pures (testées) autour de l'excédent d'un paiement.
 
 /**
@@ -8,7 +11,7 @@ export function excedentPaiement(montant: number, allocations: { montant: number
   return montant - allocations.reduce((s, a) => s + a.montant, 0) - (don?.montant ?? 0) - (mouvementCompte?.montant ?? 0);
 }
 
-type CaisseAllocation = { id: string; nom: string; type: "TONTINE" | "COLLECTE" | "COMPTE_GARDE"; statut: "ACTIVE" | "ARCHIVEE" };
+type CaisseAllocation = { id: string; nom: string; type: TypeCaisse; statut: "ACTIVE" | "ARCHIVEE" };
 
 /**
  * Collecte où l'excédent d'un paiement peut devenir une bonne volonté : celle de ses cotisations,
@@ -19,5 +22,5 @@ export function collecteDuDon(allocations: { echeance: { cycle: { caisse: Caisse
   const caisses = new Map(allocations.map((a) => [a.echeance.cycle.caisse.id, a.echeance.cycle.caisse]));
   if (caisses.size !== 1) return null;
   const [caisse] = caisses.values();
-  return caisse.type === "COLLECTE" && caisse.statut === "ACTIVE" ? { id: caisse.id, nom: caisse.nom } : null;
+  return avecDepenses(caisse.type) && caisse.statut === "ACTIVE" ? { id: caisse.id, nom: caisse.nom } : null;
 }

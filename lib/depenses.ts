@@ -4,6 +4,9 @@ import { formaterFCFA } from "@/lib/format";
 // Sorties de caisse (phase 11) : restant et totaux par catégorie. Fonctions pures, testées.
 // Bonnes volontés : les dons s'ajoutent aux cotisations dans l'encaissé, et paient les dépenses aussi.
 
+/** Caisses qui ont des dépenses, des bonnes volontés et un « restant en caisse » : collectes et mensualités. */
+export const avecDepenses = (type: string) => type === "COLLECTE" || type === "MENSUALITE";
+
 export const LIBELLES_CATEGORIE: Record<CategorieDepense, string> = {
   NOURRITURE: "Nourriture",
   TRANSPORT: "Transport",

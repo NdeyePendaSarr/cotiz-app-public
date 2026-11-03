@@ -40,6 +40,7 @@ export const LIBELLES_TYPE: Record<TypeCaisse, string> = {
   TONTINE: "Tontine",
   COLLECTE: "Collecte",
   COMPTE_GARDE: "Compte gardé",
+  MENSUALITE: "Mensualité",
 };
 
 export const LIBELLES_FREQUENCE: Record<Frequence, string> = {

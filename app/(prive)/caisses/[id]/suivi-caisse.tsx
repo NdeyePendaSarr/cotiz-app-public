@@ -45,7 +45,7 @@ const garder: Record<Filtre, (l: LigneSuivi) => boolean> = {
 export type ContexteSuivi = {
   caisseId: string;
   caisseNom: string;
-  type: "TONTINE" | "COLLECTE";
+  type: "TONTINE" | "COLLECTE" | "MENSUALITE";
   cycleNumero: number;
   cycleOuvert: boolean;
   dateDebut: string; // ISO
@@ -96,7 +96,7 @@ export function SuiviCaisse({ suivi, contexte }: { suivi: Suivi; contexte: Conte
     <>
       {contexte.cycleOuvert && contexte.dateLimitePassee && (
         <p role="status" className="rounded-2xl bg-avertissement/12 p-3 text-sm font-medium text-avertissement">
-          Date limite passée : clôturer la collecte ?
+          {contexte.type === "MENSUALITE" ? "Dernier mois terminé : clôturer la mensualité ?" : "Date limite passée : clôturer la collecte ?"}
         </p>
       )}
       {suivi.totalArrieres > 0 && (
@@ -111,7 +111,7 @@ export function SuiviCaisse({ suivi, contexte }: { suivi: Suivi; contexte: Conte
           {/* key = n° du cycle : après une clôture, le récap repart de zéro. */}
           <CopierRecap
             key={`recap-${contexte.cycleNumero}`}
-            texte={[construireRecap(suivi, { caisse: contexte.caisseNom, cycle: contexte.cycleNumero, dateEcheance }, FORMAT_RECAP), ...(contexte.finances ? ["", ...lignesRecapFinances(contexte.finances)] : [])].join("\n")}
+            texte={[construireRecap(suivi, { caisse: contexte.caisseNom, cycle: contexte.cycleNumero, dateEcheance, mensualite: contexte.type === "MENSUALITE" }, FORMAT_RECAP), ...(contexte.finances ? ["", ...lignesRecapFinances(contexte.finances)] : [])].join("\n")}
           />
 
           {relanceEnSerie && <div className="hidden lg:block">{relanceEnSerie}</div>}
@@ -148,7 +148,11 @@ export function SuiviCaisse({ suivi, contexte }: { suivi: Suivi; contexte: Conte
 
         <Section
           className="lg:col-start-1 lg:row-start-1"
-          titre={`Cycle n° ${contexte.cycleNumero} ${contexte.cycleOuvert ? "en cours" : "clôturé"}`}
+          titre={
+            contexte.type === "MENSUALITE"
+              ? `Mensualité ${contexte.cycleOuvert ? "en cours" : "clôturée"}`
+              : `Cycle n° ${contexte.cycleNumero} ${contexte.cycleOuvert ? "en cours" : "clôturé"}`
+          }
           action={
             <select
               aria-label="Trier la liste"
@@ -420,7 +424,10 @@ function LigneMembre({
           {l.cellule && <span className="text-xs font-semibold text-primary">{l.cellule}</span>}
           {/* Le reste dû passe en premier (audit, lot 2) : c'est ce qu'on cherche des yeux. */}
           {l.reste > 0 ? (
-            <span className={cn("text-sm font-bold", l.paye > 0 ? "text-partiel" : "text-retard")}>Reste {formaterFCFA(l.reste)}</span>
+            <span className={cn("text-sm font-bold", l.paye > 0 ? "text-partiel" : "text-retard")}>
+              Reste {formaterFCFA(l.reste)}
+              {l.exigible !== undefined && " à ce jour"}
+            </span>
           ) : null}
           <span className="text-xs text-muted-foreground">
             {formaterFCFA(l.paye)} versés sur {formaterFCFA(l.montantDu)}
@@ -456,7 +463,8 @@ function messageRelance(l: LigneSuivi, contexte: ContexteSuivi) {
     nom: l.nom,
     caisse: contexte.caisseNom,
     cycle: contexte.cycleNumero,
-    montant: l.montantDu,
+    // Mensualité : ce qui est dû à ce jour, pas toute l'année.
+    montant: l.exigible ?? l.montantDu,
     reste: l.reste,
     echeance: new Date(contexte.dateEcheance),
     type: contexte.type,
@@ -629,13 +637,13 @@ export function Cloture({ suivi, contexte }: { suivi: Suivi; contexte: ContexteS
   if (!confirmation) {
     return (
       <Button type="button" variant="outline" onClick={() => setConfirmation(true)} className="text-base">
-        {contexte.type === "COLLECTE" ? "Clôturer la collecte" : "Clôturer le cycle"}
+        {contexte.type === "COLLECTE" ? "Clôturer la collecte" : contexte.type === "MENSUALITE" ? "Clôturer la mensualité" : "Clôturer le cycle"}
       </Button>
     );
   }
   return (
     <form action={envoyer} role="alertdialog" aria-label="Confirmer la clôture" className="flex flex-col gap-2 rounded-2xl border border-destructive/40 bg-destructive/5 p-4">
-      <p className="font-semibold">{contexte.type === "COLLECTE" ? "Clôturer la collecte ?" : `Clôturer le cycle n° ${contexte.cycleNumero} ?`}</p>
+      <p className="font-semibold">{contexte.type === "COLLECTE" ? "Clôturer la collecte ?" : contexte.type === "MENSUALITE" ? "Clôturer la mensualité ?" : `Clôturer le cycle n° ${contexte.cycleNumero} ?`}</p>
       {impayes.length > 0 ? (
         <p className="text-sm">
           {impayes.length} membre{impayes.length > 1 ? "s ne sont" : " n'est"} pas à jour ({formaterFCFA(suivi.totaux.reste)} restant).

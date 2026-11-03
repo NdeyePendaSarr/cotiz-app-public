@@ -129,6 +129,6 @@ export async function cloturerCycle(caisseId: string): Promise<EtatCloture> {
   } catch {
     return { erreur: "La clôture a échoué et rien n'a été modifié. Recharge la page." };
   }
-  await annoncer(caisse.type === "COLLECTE" ? "Collecte clôturée" : "Cycle clôturé, le suivant est ouvert ✓");
+  await annoncer(caisse.type === "TONTINE" ? "Cycle clôturé, le suivant est ouvert ✓" : caisse.type === "MENSUALITE" ? "Mensualité clôturée" : "Collecte clôturée");
   refresh();
 }

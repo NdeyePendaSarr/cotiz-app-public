@@ -17,6 +17,12 @@ export type EcheanceSuivie = {
   paye: number; // somme des allocations
   /** Reste dû sur les cycles clôturés de cette caisse (hors cycle en cours). */
   arriere: number;
+  /**
+   * Mensualité : dû à ce jour (mois écoulés et mois en cours) et dû des mois terminés. « À jour »,
+   * reste et relance portent alors sur ce qui est dû à ce jour, pas sur toute la durée.
+   */
+  exigible?: number;
+  echu?: number;
 };
 
 export type LigneSuivi = EcheanceSuivie & { reste: number; statut: StatutEcheance; aJour: boolean; enRetard: boolean };
@@ -32,9 +38,12 @@ export type Suivi = {
 /** aujourdhui : date du jour à Dakar (minuit UTC), pour « en retard » après l'échéance. */
 export function calculerSuivi(echeances: EcheanceSuivie[], dateEcheance: Date, aujourdhui: Date): Suivi {
   const lignes: LigneSuivi[] = echeances.map((e) => {
-    const statut = statutEcheance(e.montantDu, e.paye);
+    const du = e.exigible ?? e.montantDu;
+    // Rien de dû à ce jour (mensualité pas encore commencée) : à jour.
+    const statut = du === 0 ? "PAYE" : statutEcheance(du, e.paye);
     const aJour = statut === "PAYE";
-    return { ...e, reste: Math.max(0, e.montantDu - e.paye), statut, aJour, enRetard: !aJour && aujourdhui > dateEcheance };
+    const enRetard = e.echu !== undefined ? e.paye < e.echu : !aJour && aujourdhui > dateEcheance;
+    return { ...e, reste: Math.max(0, du - e.paye), statut, aJour, enRetard };
   });
   const compte = (s: StatutEcheance) => lignes.filter((l) => l.statut === s).length;
   const attendu = lignes.reduce((s, l) => s + l.montantDu, 0);
@@ -51,10 +60,11 @@ export function calculerSuivi(echeances: EcheanceSuivie[], dateEcheance: Date, a
  * Résumé d'un cycle ouvert pour le tableau de bord : reçu sur attendu (même calcul que
  * calculerSuivi : un trop-perçu ne compte pas), membres pas à jour, échéance passée.
  */
-export function resumerCycle(echeances: { montantDu: number; paye: number }[], dateEcheance: Date, aujourdhui: Date) {
+export function resumerCycle(echeances: { montantDu: number; paye: number; exigible?: number }[], dateEcheance: Date, aujourdhui: Date) {
   const attendu = echeances.reduce((s, e) => s + e.montantDu, 0);
   const recu = echeances.reduce((s, e) => s + Math.min(e.paye, e.montantDu), 0);
-  const pasAJour = echeances.filter((e) => e.paye < e.montantDu).length;
+  // Mensualité : « à jour » = a versé ce qui est dû à ce jour (exigible), pas toute la durée.
+  const pasAJour = echeances.filter((e) => e.paye < (e.exigible ?? e.montantDu)).length;
   return { attendu, recu, pasAJour, echeancePassee: aujourdhui > dateEcheance };
 }
 
@@ -115,12 +125,14 @@ export type FormatRecap = "detaille" | "totaux";
 /** Récap du cycle. « detaille » : nombre à jour + qui doit encore quoi ; « totaux » : chiffres seulement. */
 export function construireRecap(
   suivi: Suivi,
-  contexte: { caisse: string; cycle: number; dateEcheance: Date },
+  contexte: { caisse: string; cycle: number; dateEcheance: Date; mensualite?: boolean },
   format: FormatRecap,
 ) {
   const t = suivi.totaux;
   const lignes = [
-    `${contexte.caisse}, cycle ${contexte.cycle} (échéance le ${formaterDate(contexte.dateEcheance)})`,
+    contexte.mensualite
+      ? `${contexte.caisse} (jusqu'au ${formaterDate(contexte.dateEcheance)}), à ce jour`
+      : `${contexte.caisse}, cycle ${contexte.cycle} (échéance le ${formaterDate(contexte.dateEcheance)})`,
     `À jour : ${t.payes} sur ${t.membres}`,
   ];
   const parCellule = totauxParCellule(suivi);

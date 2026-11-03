@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Frequence, TypeCaisse } from "@/lib/generated/prisma/enums";
+import { finMensualite, lireMois } from "@/lib/mensualite";
 import { schemaMontant } from "@/lib/validation/montant";
 
 // Fréquences proposées dans le formulaire. BIMENSUELLE existe dans le schéma mais
@@ -55,6 +56,18 @@ const collecte = z.object({
     .transform((d) => new Date(`${d}T00:00:00.000Z`)),
 });
 
+// Mensualité : montant par mois, nombre de mois et premier mois (ce mois-ci ou un autre, décidé en réunion).
+const mensualite = z.object({
+  type: z.literal(TypeCaisse.MENSUALITE),
+  nom,
+  montantCotisation: schemaMontant("Indique le montant par mois."),
+  modeleRelance,
+  nombreMois: entier("Indique le nombre de mois.").refine((n) => n >= 1 && n <= 36, { error: "Entre 1 et 36 mois." }),
+  moisDebut: z
+    .string({ error: "Choisis le premier mois." })
+    .transform((t, ctx) => lireMois(t) ?? (ctx.addIssue({ code: "custom", message: "Choisis le premier mois." }), z.NEVER)),
+});
+
 // Compte gardé : un nom et un titulaire (choisi à la création, jamais changé ensuite) ; pas de montant.
 const compteGarde = z.object({
   type: z.literal(TypeCaisse.COMPTE_GARDE),
@@ -63,7 +76,7 @@ const compteGarde = z.object({
 });
 
 /** Saisie du formulaire de caisse (création et modification). */
-export const schemaCaisse = z.discriminatedUnion("type", [tontine, collecte, compteGarde], {
+export const schemaCaisse = z.discriminatedUnion("type", [tontine, collecte, mensualite, compteGarde], {
   error: "Choisis le type de caisse.",
 });
 
@@ -71,12 +84,23 @@ export type DonneesCaisse = z.infer<typeof schemaCaisse>;
 
 /** Champs à écrire en base : les champs propres à l'autre type sont remis à null. */
 export function versChampsCaisse(c: DonneesCaisse) {
-  if (c.type === TypeCaisse.COMPTE_GARDE) {
-    return { nom: c.nom, montantCotisation: 0, modeleRelance: null, type: c.type, frequence: null, jourEcheance: null, dateLimite: null };
+  const aucun = { frequence: null, jourEcheance: null, dateLimite: null, moisDebut: null, nombreMois: null };
+  if (c.type === TypeCaisse.COMPTE_GARDE) return { ...aucun, nom: c.nom, montantCotisation: 0, modeleRelance: null, type: c.type };
+  if (c.type === TypeCaisse.MENSUALITE) {
+    return {
+      ...aucun,
+      nom: c.nom,
+      montantCotisation: c.montantCotisation,
+      modeleRelance: c.modeleRelance,
+      type: c.type,
+      moisDebut: c.moisDebut,
+      nombreMois: c.nombreMois,
+      dateLimite: finMensualite(c.moisDebut, c.nombreMois),
+    };
   }
   return c.type === TypeCaisse.TONTINE
-    ? { nom: c.nom, montantCotisation: c.montantCotisation, modeleRelance: c.modeleRelance, type: c.type, frequence: c.frequence, jourEcheance: c.jourEcheance, dateLimite: null }
-    : { nom: c.nom, montantCotisation: c.montantCotisation, modeleRelance: c.modeleRelance, type: c.type, frequence: null, jourEcheance: null, dateLimite: c.dateLimite };
+    ? { ...aucun, nom: c.nom, montantCotisation: c.montantCotisation, modeleRelance: c.modeleRelance, type: c.type, frequence: c.frequence, jourEcheance: c.jourEcheance }
+    : { ...aucun, nom: c.nom, montantCotisation: c.montantCotisation, modeleRelance: c.modeleRelance, type: c.type, dateLimite: c.dateLimite };
 }
 
 export const schemaIdentifiant = z.uuid({ error: "Identifiant invalide." });

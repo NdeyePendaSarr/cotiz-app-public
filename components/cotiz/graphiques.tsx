@@ -1,5 +1,6 @@
 import { formaterFCFA, formaterJourCourt } from "@/lib/format";
 import { LIBELLES_ETAT_CASE, type EtatCase, type LigneHistorique } from "@/lib/suivi/historique";
+import { LIBELLES_ETAT_MOIS, type EtatMois } from "@/lib/mensualite";
 import type { Rythme } from "@/lib/statistiques";
 import { cn } from "@/lib/utils";
 
@@ -409,6 +410,85 @@ export function CourbeSolde({ points, libelle }: { points: { date: Date; solde: 
           ))}
         </tbody>
       </table>
+    </figure>
+  );
+}
+
+const CASE_MOIS: Record<EtatMois, { fond: string; signe: string }> = {
+  PAYE: { fond: "bg-paye text-card", signe: "✓" },
+  PARTIEL: { fond: "bg-partiel text-card", signe: "½" },
+  RETARD: { fond: "bg-retard text-card", signe: "×" },
+  EN_COURS: { fond: "border-2 border-or", signe: "" },
+  A_VENIR: { fond: "border-2 border-dashed border-input", signe: "" },
+};
+
+export type LigneMois = { id: string; libelle: string; actif: boolean; etats: EtatMois[]; retard: number; avance: number };
+
+/**
+ * Mensualité : membres × mois. Les versements couvrent les mois les plus anciens d'abord ; à
+ * droite, le retard (mois terminés non payés) ou l'avance (mois payés avant leur tour).
+ */
+export function GrilleMois({ mois, lignes }: { mois: string[]; lignes: LigneMois[] }) {
+  return (
+    <figure className="flex flex-col gap-3">
+      <div className="overflow-x-auto">
+        <table className="border-separate border-spacing-1 text-sm">
+          <thead>
+            <tr className="text-xs text-muted-foreground">
+              <th scope="col" className="sticky left-0 z-[1] bg-card pr-2 text-left font-medium">
+                Membre
+              </th>
+              {mois.map((m) => (
+                <th key={m} scope="col" className="w-9 text-center text-[11px] leading-tight font-medium">
+                  {m.split(" ")[0]}
+                  <span className="block text-[10px] opacity-70">{m.split(" ")[1]}</span>
+                </th>
+              ))}
+              <th scope="col" className="pl-2 text-right font-medium whitespace-nowrap">
+                Retard / avance
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {lignes.map((l) => (
+              <tr key={l.id} className={cn(!l.actif && "opacity-60")}>
+                <th scope="row" className="sticky left-0 z-[1] max-w-36 truncate bg-card pr-2 text-left font-medium">
+                  {l.libelle}
+                </th>
+                {l.etats.map((etat, i) => (
+                  <td key={mois[i]} title={`${mois[i]} : ${LIBELLES_ETAT_MOIS[etat]}`}>
+                    <span className={cn("flex size-8 items-center justify-center rounded-md text-xs font-bold", CASE_MOIS[etat].fond)}>
+                      <span aria-hidden>{CASE_MOIS[etat].signe}</span>
+                      <span className="sr-only">{LIBELLES_ETAT_MOIS[etat]}</span>
+                    </span>
+                  </td>
+                ))}
+                <td className="pl-2 text-right text-xs font-semibold whitespace-nowrap">
+                  {l.retard > 0 ? (
+                    <span className="text-retard">−{formaterFCFA(l.retard)}</span>
+                  ) : l.avance > 0 ? (
+                    <span className="text-paye">+{formaterFCFA(l.avance)}</span>
+                  ) : l.etats.some((e) => e === "EN_COURS" || e === "PARTIEL") ? (
+                    <span className="text-muted-foreground">ce mois à payer</span>
+                  ) : (
+                    <span className="text-muted-foreground">à jour</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <figcaption className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+        {(Object.keys(CASE_MOIS) as EtatMois[]).map((etat) => (
+          <span key={etat} className="flex items-center gap-1.5">
+            <span aria-hidden className={cn("flex size-4 items-center justify-center rounded-[4px] text-[10px] font-bold", CASE_MOIS[etat].fond)}>
+              {CASE_MOIS[etat].signe}
+            </span>
+            {LIBELLES_ETAT_MOIS[etat]}
+          </span>
+        ))}
+      </figcaption>
     </figure>
   );
 }

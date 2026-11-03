@@ -17,7 +17,7 @@ export const metadata: Metadata = { title: "Caisses · Cotiz" };
 export default function PageCaisses() {
   return (
     <>
-      <EnTete titre="Mes caisses" surtitre="Tontines, collectes et comptes gardés">
+      <EnTete titre="Mes caisses" surtitre="Tontines, collectes, mensualités et comptes gardés">
         <Link href="/caisses/nouvelle" className={BOUTON_EN_TETE}>
           <Plus aria-hidden />
           Nouvelle caisse
@@ -74,7 +74,9 @@ function LigneCaisse({ caisse: c, compte }: { caisse: Caisse; compte?: { solde: 
   const echeance =
     c.type === "TONTINE"
       ? libelleEcheance(c.frequence, c.jourEcheance)
-      : c.dateLimite && `avant le ${formaterDate(c.dateLimite)}`;
+      : c.type === "MENSUALITE"
+        ? c.nombreMois && c.dateLimite && `${c.nombreMois} mois, jusqu'au ${formaterDate(c.dateLimite)}`
+        : c.dateLimite && `avant le ${formaterDate(c.dateLimite)}`;
 
   return (
     <Link href={`/caisses/${c.id}`} className={LIGNE}>
@@ -94,6 +96,7 @@ function LigneCaisse({ caisse: c, compte }: { caisse: Caisse; compte?: { solde: 
       </span>
       <span className={cn("flex items-center gap-1 text-sm font-semibold", compte && compte.solde < 0 && "text-retard")}>
         {formaterFCFA(compte ? compte.solde : c.montantCotisation)}
+        {c.type === "MENSUALITE" && <span className="font-normal text-muted-foreground">/mois</span>}
         <ChevronRight aria-hidden className="size-4 text-muted-foreground" />
       </span>
     </Link>

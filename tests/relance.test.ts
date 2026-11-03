@@ -17,6 +17,11 @@ describe("construireMessage", () => {
     expect(espaces(construireMessage(modeleParDefaut("TONTINE", "12"), valeurs))).toBe(attendu);
   });
 
+  it("mensualité : ce qui est dû à ce jour, sans cycle ni date", () => {
+    const mensualite = { ...valeurs, caisse: "Mensualité cellule", montant: 1_500, reste: 1_500, type: "MENSUALITE" as const };
+    expect(espaces(construireMessage(null, mensualite))).toMatch(/^Bonjour Awa Thiam, petit rappel pour la mensualité « Mensualité cellule » : à ce jour, tu dois verser 1 500 FCFA./);
+  });
+
   it("numéro Wave saisi avec indicatif ou espaces : remis au format lisible", () => {
     expect(phraseEnvoiWave("+221 77 123 45 67")).toBe(" Tu peux l'envoyer par Wave au 77 123 45 67.");
   });

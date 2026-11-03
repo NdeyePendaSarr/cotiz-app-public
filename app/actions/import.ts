@@ -8,7 +8,9 @@ import { creerEcheancesDuCycle } from "@/lib/cycles/echeances";
 import { listerPersonnesPourImport } from "@/lib/donnees/personnes";
 import { analyserImport, lignesACompleter, resumer, STATUTS_IMPORTES, type Choix, type LigneAnalysee } from "@/lib/import/analyse";
 import { detecterColonnes, extraireLignes, lireTableau, ROLES, type LigneEcartee, type Role } from "@/lib/import/tableau";
-import { Canal } from "@/lib/generated/prisma/enums";
+import { Canal, type TypeCaisse } from "@/lib/generated/prisma/enums";
+import { avecDepenses } from "@/lib/depenses";
+import { montantDuParMembre } from "@/lib/mensualite";
 import { prisma } from "@/lib/prisma";
 import { verrouillerEcheance } from "@/lib/verrous";
 import { REPRISE } from "@/lib/paiements/origine";
@@ -52,6 +54,7 @@ export async function traiterImport(caisseId: string, _etat: EtatImport, formDat
       id: true,
       type: true,
       montantCotisation: true,
+      nombreMois: true,
       membres: { where: { statut: "ACTIF" }, select: { ordrePassage: true } },
       cycles: { where: { statut: "OUVERT" }, select: { id: true } },
     },
@@ -101,7 +104,7 @@ export async function traiterImport(caisseId: string, _etat: EtatImport, formDat
         ).map((p) => [p.personneId!, { paiementId: p.id, canal: p.canal }]),
       )
     : {};
-  const contexte = { type: caisse.type, ordresPris, cycleOuvert: Boolean(cycleOuvert), dejaPayees, reprises, montantCotisation: caisse.montantCotisation };
+  const contexte = { type: caisse.type, ordresPris, cycleOuvert: Boolean(cycleOuvert), dejaPayees, reprises, montantCotisation: montantDuParMembre(caisse) };
   const lignes = analyserImport(lues, existantes, contexte, choix);
   const resume = resumer(lignes, contexte);
 
@@ -174,7 +177,7 @@ export async function traiterImport(caisseId: string, _etat: EtatImport, formDat
         // Cycle ouvert : une échéance pour chaque membre importé ou réactivé (en une requête ;
         // les échéances déjà existantes sont ignorées).
         const cycle = await tx.cycle.findFirst({ where: { caisseId: caisse.id, statut: "OUVERT" }, select: { id: true } });
-        if (cycle) await creerEcheancesDuCycle(tx, cycle.id, caisse.id, caisse.montantCotisation);
+        if (cycle) await creerEcheancesDuCycle(tx, cycle.id, caisse.id, montantDuParMembre(caisse));
 
         // Paiements déjà versés (colonne Versé) : un paiement rapproché par ligne, sur l'échéance
         // du cycle ouvert, avec son journal d'audit. Revérifié ici : jamais deux fois (réimport).
@@ -224,7 +227,7 @@ type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
  */
 async function reprendreVerse(
   tx: Tx,
-  p: { ownerId: string; caisse: { id: string; type: "TONTINE" | "COLLECTE" | "COMPTE_GARDE" }; cycleId: string; personneId: string; montant: number; canal: Canal },
+  p: { ownerId: string; caisse: { id: string; type: TypeCaisse }; cycleId: string; personneId: string; montant: number; canal: Canal },
 ) {
   const echeance = await tx.echeance.findFirst({
     where: { cycleId: p.cycleId, membre: { personneId: p.personneId, caisse: { ownerId: p.ownerId } } },
@@ -259,7 +262,7 @@ async function reprendreVerse(
   await journaliser(tx, { ownerId: p.ownerId, entite: "Allocation", entiteId: `${paiement.id}:${echeance.id}`, action: "CREATION", details: { montant: alloue } });
 
   const surplus = p.montant - alloue;
-  if (surplus > 0 && p.caisse.type === "COLLECTE") {
+  if (surplus > 0 && avecDepenses(p.caisse.type)) {
     const donnees = {
       date: new Date(`${maintenant.toISOString().slice(0, 10)}T00:00:00.000Z`),
       montant: surplus,

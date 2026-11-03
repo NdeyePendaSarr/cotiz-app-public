@@ -19,6 +19,8 @@ export function phraseEnvoiWave(numeroWave: string) {
 export const BALISES_RELANCE = ["nom", "caisse", "cycle", "montant", "reste", "a_verser", "echeance"] as const;
 type Balise = (typeof BALISES_RELANCE)[number];
 
+export type TypeRelance = "TONTINE" | "COLLECTE" | "MENSUALITE";
+
 export type ValeursRelance = {
   nom: string;
   caisse: string;
@@ -26,16 +28,18 @@ export type ValeursRelance = {
   montant: number;
   reste: number;
   echeance: Date;
-  /** Choisit le message par défaut (sans cycle pour une collecte). Tontine si absent. */
-  type?: "TONTINE" | "COLLECTE";
+  /** Choisit le message par défaut (sans cycle pour une collecte ou une mensualité). Tontine si absent. */
+  type?: TypeRelance;
 };
 
 /**
  * Message utilisé quand la caisse n'a pas de modèle propre (Caisse.modeleRelance vide). Une
  * collecte n'a qu'un cycle : il n'est pas cité.
  */
-export function modeleParDefaut(type: "TONTINE" | "COLLECTE" = "TONTINE", numeroWave = NUMERO_WAVE_RELANCE) {
+export function modeleParDefaut(type: TypeRelance = "TONTINE", numeroWave = NUMERO_WAVE_RELANCE) {
   const envoi = phraseEnvoiWave(numeroWave);
+  // Mensualité : {montant} et {reste} portent sur ce qui est dû à ce jour (mois écoulés et mois en cours).
+  if (type === "MENSUALITE") return `Bonjour {nom}, petit rappel pour la mensualité « {caisse} » : à ce jour, {a_verser}.${envoi} Merci !`;
   return type === "COLLECTE"
     ? `Bonjour {nom}, petit rappel pour la « {caisse} » : {a_verser}, avant le {echeance}.${envoi} Merci !`
     : `Bonjour {nom}, petit rappel pour la caisse « {caisse} » (cycle {cycle}) : {a_verser}, avant le {echeance}.${envoi} Merci !`;

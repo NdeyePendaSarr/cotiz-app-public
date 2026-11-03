@@ -43,8 +43,8 @@ export function FormulaireCaisse({
     <form action={envoyer} className="flex flex-col gap-5" noValidate>
       <fieldset className="flex flex-col gap-2" disabled={typeVerrouille}>
         <legend className="mb-2 text-sm font-medium">Type de caisse</legend>
-        <div className="grid grid-cols-3 gap-2">
-          {[TypeCaisse.TONTINE, TypeCaisse.COLLECTE, TypeCaisse.COMPTE_GARDE].map((t) => (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {[TypeCaisse.TONTINE, TypeCaisse.COLLECTE, TypeCaisse.MENSUALITE, TypeCaisse.COMPTE_GARDE].map((t) => (
             <label
               key={t}
               className={cn(
@@ -91,12 +91,12 @@ export function FormulaireCaisse({
         </>
       ) : (
       <>
-      <Champ id="montantCotisation" label="Montant par membre (FCFA)" erreur={erreurs.montantCotisation}>
+      <Champ id="montantCotisation" label={type === TypeCaisse.MENSUALITE ? "Montant par mois (FCFA)" : "Montant par membre (FCFA)"} erreur={erreurs.montantCotisation}>
         <Input
           id="montantCotisation"
           name="montantCotisation"
           inputMode="numeric"
-          placeholder="10 000"
+          placeholder={type === TypeCaisse.MENSUALITE ? "500" : "10 000"}
           defaultValue={valeurs.montantCotisation}
           aria-invalid={Boolean(erreurs.montantCotisation)}
           className="h-11 text-base"
@@ -153,6 +153,8 @@ export function FormulaireCaisse({
             </Champ>
           )}
         </>
+      ) : type === TypeCaisse.MENSUALITE ? (
+        <ChampsMensualite valeurs={valeurs} erreurs={erreurs} />
       ) : (
         <Champ id="dateLimite" label="Date limite" erreur={erreurs.dateLimite}>
           <Input
@@ -172,7 +174,7 @@ export function FormulaireCaisse({
         </Champ>
       )}
 
-      <ChampModeleRelance valeurInitiale={valeurs.modeleRelance ?? ""} nomCaisse={valeurs.nom} type={type === TypeCaisse.COLLECTE ? "COLLECTE" : "TONTINE"} erreur={erreurs.modeleRelance} />
+      <ChampModeleRelance valeurInitiale={valeurs.modeleRelance ?? ""} nomCaisse={valeurs.nom} type={type === TypeCaisse.COLLECTE || type === TypeCaisse.MENSUALITE ? type : "TONTINE"} erreur={erreurs.modeleRelance} />
       </>
       )}
 
@@ -189,6 +191,37 @@ export function FormulaireCaisse({
   );
 }
 
+/**
+ * Mensualité : nombre de mois et premier mois (ce mois-ci ou le suivant, selon la réunion).
+ * Chaque membre doit toute la durée, même s'il arrive en cours d'année.
+ */
+function ChampsMensualite({ valeurs, erreurs }: { valeurs: Record<string, string>; erreurs: Record<string, string> }) {
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-3">
+        <Champ id="nombreMois" label="Nombre de mois" erreur={erreurs.nombreMois}>
+          <Input id="nombreMois" name="nombreMois" inputMode="numeric" defaultValue={valeurs.nombreMois ?? "12"} aria-invalid={Boolean(erreurs.nombreMois)} className="h-11 text-base" />
+        </Champ>
+        <Champ id="moisDebut" label="Premier mois" erreur={erreurs.moisDebut}>
+          <Input
+            id="moisDebut"
+            name="moisDebut"
+            type="month"
+            placeholder="2026-12"
+            defaultValue={valeurs.moisDebut ?? new Date().toISOString().slice(0, 7)}
+            aria-invalid={Boolean(erreurs.moisDebut)}
+            className="h-11 text-base"
+          />
+        </Champ>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        Chaque mois se paie dans le mois. Un versement couvre d&apos;abord les mois les plus anciens : les retards, puis l&apos;avance. Un membre qui
+        arrive en cours d&apos;année doit toute la durée.
+      </p>
+    </>
+  );
+}
+
 /** Modèle de relance de la caisse, avec un aperçu sur un exemple (vide = modèle par défaut). */
 function ChampModeleRelance({
   valeurInitiale,
@@ -198,7 +231,7 @@ function ChampModeleRelance({
 }: {
   valeurInitiale: string;
   nomCaisse?: string;
-  type: "TONTINE" | "COLLECTE";
+  type: "TONTINE" | "COLLECTE" | "MENSUALITE";
   erreur?: string;
 }) {
   const [modele, setModele] = useState(valeurInitiale);

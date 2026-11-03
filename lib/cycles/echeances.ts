@@ -1,5 +1,6 @@
 import "server-only";
 import type { Prisma } from "@/lib/generated/prisma/client";
+import { montantDuParMembre } from "@/lib/mensualite";
 
 // Création et retrait des échéances. Toujours appelées DANS une transaction, avec une caisse
 // dont l'appartenance à l'utilisatrice a déjà été vérifiée par l'appelant.
@@ -20,11 +21,12 @@ export async function creerEcheancesDuCycle(tx: Tx, cycleId: string, caisseId: s
 export async function assurerEcheanceMembre(tx: Tx, membreCaisseId: string, caisseId: string) {
   const cycle = await tx.cycle.findFirst({
     where: { caisseId, statut: "OUVERT" },
-    select: { id: true, caisse: { select: { montantCotisation: true } } },
+    select: { id: true, caisse: { select: { type: true, montantCotisation: true, nombreMois: true } } },
   });
   if (!cycle) return;
+  // Mensualité : toute la durée, même pour qui arrive en cours d'année (règle de la trésorière).
   await tx.echeance.createMany({
-    data: [{ cycleId: cycle.id, membreCaisseId, montantDu: cycle.caisse.montantCotisation }],
+    data: [{ cycleId: cycle.id, membreCaisseId, montantDu: montantDuParMembre(cycle.caisse) }],
     skipDuplicates: true,
   });
 }

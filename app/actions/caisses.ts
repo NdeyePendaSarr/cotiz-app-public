@@ -9,13 +9,14 @@ import { exigerUtilisatrice } from "@/lib/auth";
 import { aujourdhui } from "@/lib/cycles/dates";
 import { StatutCaisse } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
+import { montantDuParMembre } from "@/lib/mensualite";
 import { schemaCaisse, schemaIdentifiant, versChampsCaisse } from "@/lib/validation/caisse";
 
 export type EtatFormulaireCaisse =
   | { erreur?: string; erreurs?: Record<string, string>; valeurs?: Record<string, string> }
   | undefined;
 
-const CHAMPS = ["type", "nom", "montantCotisation", "frequence", "jourEcheance", "dateLimite", "modeleRelance", "titulaireId"] as const;
+const CHAMPS = ["type", "nom", "montantCotisation", "frequence", "jourEcheance", "dateLimite", "modeleRelance", "titulaireId", "nombreMois", "moisDebut"] as const;
 
 function lireFormulaire(formData: FormData) {
   const valeurs: Record<string, string> = {};
@@ -56,6 +57,11 @@ export async function creerCaisse(_etat: EtatFormulaireCaisse, formData: FormDat
     if (titulaireId) await tx.membreCaisse.create({ data: { caisseId: creee.id, personneId: titulaireId } });
     // Une collecte a un seul cycle, créé avec elle (début = aujourd'hui, échéance = date limite).
     // Aucun membre encore : les échéances arrivent avec chaque membre ajouté ou importé.
+    // Mensualité : un seul cycle pour toute la durée, du 1er du premier mois au dernier jour du dernier.
+    if (donnees.type === "MENSUALITE") {
+      const champs = versChampsCaisse(donnees);
+      await tx.cycle.create({ data: { caisseId: creee.id, numero: 1, dateDebut: donnees.moisDebut, dateEcheance: champs.dateLimite! } });
+    }
     if (donnees.type === "COLLECTE") {
       const debut = aujourdhui();
       await tx.cycle.create({
@@ -103,6 +109,14 @@ export async function modifierCaisse(
     // Collecte : la date limite est l'échéance de son cycle ouvert.
     if (donnees.type === "COLLECTE") {
       await tx.cycle.updateMany({ where: { caisseId: idValide.data, statut: "OUVERT" }, data: { dateEcheance: donnees.dateLimite } });
+    }
+    // Mensualité : premier mois, durée ou montant corrigés → dates du cycle et dû de chaque membre
+    // recalculés (une seule échéance par membre pour toute la durée ; ce qui est versé reste versé).
+    if (donnees.type === "MENSUALITE") {
+      const champs = versChampsCaisse(donnees);
+      const cycles = await tx.cycle.findMany({ where: { caisseId: idValide.data, statut: "OUVERT" }, select: { id: true } });
+      await tx.cycle.updateMany({ where: { id: { in: cycles.map((c) => c.id) } }, data: { dateDebut: donnees.moisDebut, dateEcheance: champs.dateLimite! } });
+      await tx.echeance.updateMany({ where: { cycleId: { in: cycles.map((c) => c.id) } }, data: { montantDu: montantDuParMembre(champs) } });
     }
   });
   await annoncer("Caisse enregistrée ✓");

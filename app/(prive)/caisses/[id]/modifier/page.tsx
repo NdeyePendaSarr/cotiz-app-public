@@ -38,15 +38,24 @@ async function Modification({ params }: { params: Promise<{ id: string }> }) {
     ...(caisse.jourEcheance && { jourEcheance: String(caisse.jourEcheance) }),
     ...(caisse.dateLimite && { dateLimite: versChampDate(caisse.dateLimite) }),
     ...(caisse.modeleRelance && { modeleRelance: caisse.modeleRelance }),
+    ...(caisse.nombreMois && { nombreMois: String(caisse.nombreMois) }),
+    ...(caisse.moisDebut && { moisDebut: versChampDate(caisse.moisDebut).slice(0, 7) }),
   };
 
   return (
     <>
       <EnTete leger retour={{ href: `/caisses/${caisse.id}`, libelle: caisse.nom }} titre={caisse.type === "COMPTE_GARDE" ? "Renommer le compte" : "Modifier la caisse"} />
-      {caisse.type !== "COMPTE_GARDE" && (
+      {caisse.type === "MENSUALITE" ? (
         <p className="text-sm text-muted-foreground">
-          Un nouveau montant ne s&apos;applique qu&apos;aux cycles futurs : les échéances déjà créées gardent leur montant.
+          Un nouveau montant, nombre de mois ou premier mois s&apos;applique à tous les membres : ce que chacun doit est recalculé, ce qui est versé
+          reste versé.
         </p>
+      ) : (
+        caisse.type !== "COMPTE_GARDE" && (
+          <p className="text-sm text-muted-foreground">
+            Un nouveau montant ne s&apos;applique qu&apos;aux cycles futurs : les échéances déjà créées gardent leur montant.
+          </p>
+        )
       )}
       <FormulaireCaisse
         action={modifierCaisse.bind(null, caisse.id)}

@@ -6,6 +6,8 @@ import { lireCanal, lireVerse, type CanalLu, type LigneLue } from "@/lib/import/
 import { normaliserTelephone } from "@/lib/telephone";
 import { nettoyerNom, normaliserNom } from "@/lib/texte";
 import { chercherDoublons, type PersonneComparee } from "@/lib/validation/personne";
+import { avecDepenses } from "@/lib/depenses";
+import type { TypeCaisse } from "@/lib/generated/prisma/enums";
 
 export type PersonneExistante = PersonneComparee & {
   /** Son inscription dans la caisse cible, si elle y est déjà. */
@@ -48,7 +50,7 @@ function distinctes(a: { telephone: string | null; cellule: string | null }, b: 
 }
 
 export type ContexteCaisse = {
-  type: "TONTINE" | "COLLECTE" | "COMPTE_GARDE";
+  type: TypeCaisse;
   /** Ordres de passage déjà pris dans la caisse. */
   ordresPris: number[];
   /** Un cycle est ouvert : le versé peut y être enregistré (phase 10). */
@@ -245,7 +247,7 @@ function attribuerVerses(lignes: LigneAnalysee[], lues: LigneLue[], caisse: Cont
       const canal = lireCanal(texteCanal);
       if (canal === "illisible") ligne.messages.push(`Canal illisible « ${texteCanal} » : celui choisi pour l'import.`);
       else ligne.canal = canal;
-      const surplus = caisse.type === "COLLECTE" && caisse.montantCotisation ? montant - caisse.montantCotisation : 0;
+      const surplus = avecDepenses(caisse.type) && caisse.montantCotisation ? montant - caisse.montantCotisation : 0;
       if (surplus > 0) ligne.messages.push(`Dont ${formaterFCFA(surplus)} en bonne volonté.`);
     }
   }
@@ -282,7 +284,7 @@ function attribuerOrdres(lignes: LigneAnalysee[], lues: LigneLue[], ordresPris: 
 }
 
 export function resumer(lignes: LigneAnalysee[], caisse?: Pick<ContexteCaisse, "type" | "montantCotisation">) {
-  const cotisation = caisse?.type === "COLLECTE" ? (caisse.montantCotisation ?? 0) : 0;
+  const cotisation = caisse && avecDepenses(caisse.type) ? (caisse.montantCotisation ?? 0) : 0;
   const compte = (s: Statut) => lignes.filter((l) => l.statut === s).length;
   return {
     total: lignes.length,

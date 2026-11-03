@@ -9,7 +9,7 @@ import { changerStatutMembre } from "@/app/actions/membres";
 import { EnTete, Progression } from "@/components/cotiz/en-tete";
 import { Bloc, Section } from "@/components/cotiz/section";
 import { CasesChiffres } from "@/components/cotiz/cases-chiffres";
-import { Anneau, BarresHorizontales, Cascade, GrilleHistorique, JaugeRythme } from "@/components/cotiz/graphiques";
+import { Anneau, BarresHorizontales, Cascade, GrilleHistorique, GrilleMois, JaugeRythme } from "@/components/cotiz/graphiques";
 import { TABLEAU } from "@/components/cotiz/styles";
 import { SqueletteListe } from "@/components/cotiz/squelette";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -18,7 +18,8 @@ import { ajouterJours, aujourdhui, prochaineEcheance } from "@/lib/cycles/dates"
 import { obtenirCaisse } from "@/lib/donnees/caisses";
 import { compterCycles } from "@/lib/donnees/cycles";
 import { listerMembres } from "@/lib/donnees/membres";
-import { bilanCaisse, donsParDonateur, LIBELLES_CATEGORIE } from "@/lib/depenses";
+import { avecDepenses, bilanCaisse, donsParDonateur, LIBELLES_CATEGORIE } from "@/lib/depenses";
+import { construireGrilleMois, enrichirMensualite, moisEnCours, montantDuParMembre } from "@/lib/mensualite";
 import { encaisseCaisse, listerDepenses, listerDons } from "@/lib/donnees/depenses";
 import { formaterDate, formaterFCFA, libelleEcheance, LIBELLES_CANAL, LIBELLES_FREQUENCE, LIBELLES_TYPE, versChampDate } from "@/lib/format";
 import { formaterTelephone } from "@/lib/telephone";
@@ -48,7 +49,7 @@ export default function PageCaisse({ params, searchParams }: PageProps<"/caisses
   );
 }
 
-type Vue = "membres" | "historique" | "dons" | "depenses" | "caisse";
+type Vue = "membres" | "mois" | "historique" | "dons" | "depenses" | "caisse";
 
 const RETOUR = { href: "/caisses", libelle: "Caisses" };
 
@@ -82,23 +83,31 @@ async function DetailCaisse({
 
   const archivee = caisse.statut === "ARCHIVEE";
   const collecte = caisse.type === "COLLECTE";
-  const entreesHistorique = collecte ? [] : historiqueLu;
+  const mensualite = caisse.type === "MENSUALITE";
+  // Collectes et mensualités : dépenses, bonnes volontés et restant en caisse.
+  const sorties = avecDepenses(caisse.type);
+  const entreesHistorique = caisse.type === "TONTINE" ? historiqueLu : [];
   const [depenses, encaisse, dons] = await Promise.all([
-    collecte ? listerDepenses(ownerId, caisse.id) : [],
-    collecte ? encaisseCaisse(ownerId, caisse.id) : 0,
-    collecte ? listerDons(ownerId, caisse.id) : [],
+    sorties ? listerDepenses(ownerId, caisse.id) : [],
+    sorties ? encaisseCaisse(ownerId, caisse.id) : 0,
+    sorties ? listerDons(ownerId, caisse.id) : [],
   ]);
   // Sorties de caisse (phase 11, collectes) : cotisations + bonnes volontés − dépensé = restant.
-  const bilan = collecte ? bilanCaisse(encaisse, depenses, dons.reduce((t, d) => t + d.montant, 0)) : null;
+  const bilan = sorties ? bilanCaisse(encaisse, depenses, dons.reduce((t, d) => t + d.montant, 0)) : null;
   const donateurs = donsParDonateur(dons);
   const nbDonateurs = new Set(dons.map((d) => d.donateur.trim().toLowerCase())).size;
   const jour = aujourdhui();
   // Suivi du cycle ouvert (ou du dernier cycle d'une collecte terminée).
-  const suivi = donnees ? calculerSuivi(donnees.lignes, donnees.cycle.dateEcheance, jour) : null;
+  // Mensualité : « à jour », reste et relances portent sur ce qui est dû à ce jour, pas sur toute l'année.
+  const lignesSuivi = donnees ? (mensualite ? enrichirMensualite(donnees.lignes, caisse, jour) : donnees.lignes) : [];
+  const suivi = donnees ? calculerSuivi(lignesSuivi, donnees.cycle.dateEcheance, jour) : null;
+  const grilleMois = mensualite && donnees && caisse.moisDebut && caisse.nombreMois ? construireGrilleMois(donnees.lignes, caisse.montantCotisation, caisse.moisDebut, caisse.nombreMois, jour) : null;
+  const numeroMois = mensualite && caisse.moisDebut && caisse.nombreMois ? moisEnCours(caisse.moisDebut, caisse.nombreMois, jour) : 0;
   const vues: { vue: Vue; libelle: string }[] = [
     { vue: "membres", libelle: suivi ? `Membres (${suivi.actifs.length})` : "Membres" },
-    ...(!collecte && nbCycles > 0 ? [{ vue: "historique" as const, libelle: "Historique" }] : []),
-    ...(collecte
+    ...(grilleMois ? [{ vue: "mois" as const, libelle: "Mois par mois" }] : []),
+    ...(caisse.type === "TONTINE" && nbCycles > 0 ? [{ vue: "historique" as const, libelle: "Historique" }] : []),
+    ...(sorties
       ? [
           { vue: "dons" as const, libelle: dons.length > 0 ? `Bonnes volontés (${dons.length})` : "Bonnes volontés" },
           { vue: "depenses" as const, libelle: depenses.length > 0 ? `Dépenses (${depenses.length})` : "Dépenses" },
@@ -122,7 +131,7 @@ async function DetailCaisse({
             caisse.type === "TONTINE"
               ? (prochaineEcheance(caisse.frequence, caisse.jourEcheance, ajouterJours(donnees.cycle.dateEcheance, 1))?.toISOString() ?? null)
               : null,
-          dateLimitePassee: caisse.type === "COLLECTE" && Boolean(caisse.dateLimite && caisse.dateLimite < jour),
+          dateLimitePassee: sorties && Boolean(caisse.dateLimite && caisse.dateLimite < jour),
           finances: bilan && { cotisations: bilan.cotisations, dons: bilan.dons, encaisse: bilan.encaisse, depense: bilan.depense, restant: bilan.restant },
         }
       : null;
@@ -181,7 +190,9 @@ async function DetailCaisse({
         titre={caisse.nom}
         surtitre={
           donnees
-            ? `${caisse.type === "TONTINE" ? `Cycle ${donnees.cycle.numero}` : "Collecte"} · échéance ${formaterDate(donnees.cycle.dateEcheance)}`
+            ? mensualite && caisse.nombreMois
+              ? `Mensualité · ${numeroMois === 0 ? "pas encore commencée" : numeroMois > caisse.nombreMois ? "terminée" : `mois ${numeroMois} sur ${caisse.nombreMois}`} · fin le ${formaterDate(donnees.cycle.dateEcheance)}`
+              : `${caisse.type === "TONTINE" ? `Cycle ${donnees.cycle.numero}` : "Collecte"} · échéance ${formaterDate(donnees.cycle.dateEcheance)}`
             : `${LIBELLES_TYPE[caisse.type]}${archivee ? " · archivée" : ""}`
         }
         montant={formaterFCFA(suivi ? suivi.totaux.recu : caisse.montantCotisation)}
@@ -263,8 +274,8 @@ async function DetailCaisse({
       {vue === "membres" &&
         (donnees && suivi && contexte ? (
           <>
-            {donnees.cycle.statut !== "OUVERT" && caisse.type === "COLLECTE" && (
-              <p className="rounded-2xl bg-secondary p-3 text-center font-semibold text-secondary-foreground">Collecte terminée.</p>
+            {donnees.cycle.statut !== "OUVERT" && sorties && (
+              <p className="rounded-2xl bg-secondary p-3 text-center font-semibold text-secondary-foreground">{mensualite ? "Mensualité terminée." : "Collecte terminée."}</p>
             )}
             <SuiviCaisse suivi={suivi} contexte={contexte} />
           </>
@@ -273,6 +284,17 @@ async function DetailCaisse({
         ) : (
           <PremierCycle caisse={caisse} nbCycles={nbCycles} />
         ))}
+
+      {vue === "mois" && grilleMois && (
+        <Section titre="Mois par mois" pleineLargeur>
+          <Bloc className="py-4">
+            <GrilleMois mois={grilleMois.mois} lignes={grilleMois.lignes} />
+          </Bloc>
+          <p className="text-sm text-muted-foreground">
+            Chaque versement couvre d&apos;abord les mois les plus anciens. Un mois est en retard quand il est terminé sans être payé.
+          </p>
+        </Section>
+      )}
 
       {vue === "dons" && bilan && (
         <Section
@@ -470,13 +492,24 @@ async function DetailCaisse({
             <Bloc>
               <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 py-3 text-sm">
                 <dt className="text-muted-foreground">Montant</dt>
-                <dd className="text-right font-semibold">{formaterFCFA(caisse.montantCotisation)} par membre</dd>
+                <dd className="text-right font-semibold">
+                  {mensualite && caisse.nombreMois
+                    ? `${formaterFCFA(caisse.montantCotisation)} par mois × ${caisse.nombreMois} = ${formaterFCFA(montantDuParMembre(caisse))}`
+                    : `${formaterFCFA(caisse.montantCotisation)} par membre`}
+                </dd>
                 {caisse.type === "TONTINE" ? (
                   <>
                     <dt className="text-muted-foreground">Fréquence</dt>
                     <dd className="text-right font-semibold">{caisse.frequence ? LIBELLES_FREQUENCE[caisse.frequence] : "—"}</dd>
                     <dt className="text-muted-foreground">Échéance</dt>
                     <dd className="text-right font-semibold">{libelleEcheance(caisse.frequence, caisse.jourEcheance) ?? "—"}</dd>
+                  </>
+                ) : mensualite && grilleMois ? (
+                  <>
+                    <dt className="text-muted-foreground">Période</dt>
+                    <dd className="text-right font-semibold">
+                      {grilleMois.mois[0]} à {grilleMois.mois.at(-1)}
+                    </dd>
                   </>
                 ) : (
                   <>
@@ -506,7 +539,7 @@ async function DetailCaisse({
           </Section>
 
           {suivi && contexte?.cycleOuvert && (
-            <Section titre={caisse.type === "COLLECTE" ? "Fin de la collecte" : "Fin du cycle"}>
+            <Section titre={collecte ? "Fin de la collecte" : mensualite ? "Fin de la mensualité" : "Fin du cycle"}>
               <Cloture suivi={suivi} contexte={contexte} />
             </Section>
           )}

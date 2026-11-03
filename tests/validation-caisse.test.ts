@@ -90,7 +90,20 @@ describe("versChampsCaisse", () => {
       frequence: null,
       jourEcheance: null,
       dateLimite: null,
+      moisDebut: null,
+      nombreMois: null,
     });
     expect(schemaCaisse.safeParse({ type: "COMPTE_GARDE", nom: "X", titulaireId: "pas-un-id" }).success).toBe(false);
+  });
+
+  it("une mensualité : montant par mois, nombre de mois, premier mois ; date limite = fin du dernier mois", () => {
+    const saisie = { type: "MENSUALITE", nom: "Mensualité cellule", montantCotisation: "500", nombreMois: "12", moisDebut: "2026-12" };
+    const champs = versChampsCaisse(schemaCaisse.parse(saisie));
+    expect(champs).toMatchObject({ montantCotisation: 500, nombreMois: 12, frequence: null, jourEcheance: null });
+    expect(champs.moisDebut?.toISOString().slice(0, 10)).toBe("2026-12-01");
+    expect(champs.dateLimite?.toISOString().slice(0, 10)).toBe("2027-11-30");
+    expect(premiereErreur({ ...saisie, moisDebut: "" })?.champ).toBe("moisDebut");
+    expect(premiereErreur({ ...saisie, nombreMois: "0" })?.champ).toBe("nombreMois");
+    expect(premiereErreur({ ...saisie, nombreMois: "40" })?.champ).toBe("nombreMois");
   });
 });

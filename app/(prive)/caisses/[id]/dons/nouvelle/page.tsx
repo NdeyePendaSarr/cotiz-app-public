@@ -5,6 +5,7 @@ import { creerDon } from "@/app/actions/dons";
 import { EnTete } from "@/components/cotiz/en-tete";
 import { SqueletteFormulaire } from "@/components/cotiz/squelette";
 import { exigerUtilisatrice } from "@/lib/auth";
+import { avecDepenses } from "@/lib/depenses";
 import { obtenirCaisse } from "@/lib/donnees/caisses";
 import { schemaIdentifiant } from "@/lib/validation/caisse";
 import { FormulaireDon } from "../formulaire-don";
@@ -24,7 +25,7 @@ async function Creation({ params }: { params: Promise<{ id: string }> }) {
   const { id: ownerId } = await exigerUtilisatrice();
   const idValide = schemaIdentifiant.safeParse(id);
   const caisse = idValide.success ? await obtenirCaisse(ownerId, idValide.data) : null;
-  if (!caisse || caisse.type !== "COLLECTE" || caisse.statut !== "ACTIVE") notFound();
+  if (!caisse || !avecDepenses(caisse.type) || caisse.statut !== "ACTIVE") notFound();
 
   return (
     <>

@@ -44,7 +44,7 @@ export async function creerDon(caisseId: string, _etat: EtatFormulaireDon, formD
   const { id: ownerId } = await exigerUtilisatrice();
   const idValide = schemaIdentifiant.safeParse(caisseId);
   if (!idValide.success) return { erreur: "Caisse introuvable." };
-  const caisse = await prisma.caisse.findFirst({ where: { id: idValide.data, ownerId, type: "COLLECTE", statut: "ACTIVE" }, select: { id: true } });
+  const caisse = await prisma.caisse.findFirst({ where: { id: idValide.data, ownerId, type: { in: ["COLLECTE", "MENSUALITE"] }, statut: "ACTIVE" }, select: { id: true } });
   if (!caisse) return { erreur: "Collecte introuvable ou archivée." };
 
   const lu = lireSaisie(formData);

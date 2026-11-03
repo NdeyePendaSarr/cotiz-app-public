@@ -18,6 +18,7 @@ import { compterARembourser, cyclesOuverts } from "@/lib/donnees/suivi";
 import { formaterDate, formaterFCFA, formaterJourCourt, LIBELLES_CANAL, LIBELLES_TYPE } from "@/lib/format";
 import { recuParCanal, recuParJour, rythmeCollectes, tendancesSemaine, totalReprises, type Tendance } from "@/lib/statistiques";
 import { resumerCycle } from "@/lib/suivi/cycle";
+import { enrichirMensualite } from "@/lib/mensualite";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Tableau de bord · Cotiz" };
@@ -43,7 +44,10 @@ async function Accueil() {
     cyclesOuverts(ownerId),
     paiementsRecus(ownerId, jour, JOURS_GRAPHIQUE),
   ]);
-  const resumes = cycles.map((c) => ({ ...c, r: resumerCycle(c.echeances, c.dateEcheance, jour) }));
+  const resumes = cycles.map((c) => ({
+    ...c,
+    r: resumerCycle(c.caisse.type === "MENSUALITE" ? enrichirMensualite(c.echeances, c.caisse, jour) : c.echeances, c.dateEcheance, jour),
+  }));
   const recu = resumes.reduce((s, c) => s + c.r.recu, 0);
   const attendu = resumes.reduce((s, c) => s + c.r.attendu, 0);
   const pourcentage = attendu > 0 ? Math.round((recu / attendu) * 100) : 0;
@@ -230,7 +234,7 @@ async function Accueil() {
                         <span className="flex min-w-0 flex-col">
                           <span className="line-clamp-2 font-semibold">{c.caisse.nom}</span>
                           <span className="text-xs text-muted-foreground">
-                            {c.caisse.type === "TONTINE" ? `Cycle ${c.numero}` : LIBELLES_TYPE.COLLECTE} · échéance {formaterDate(c.dateEcheance)}
+                            {c.caisse.type === "TONTINE" ? `Cycle ${c.numero}` : LIBELLES_TYPE[c.caisse.type]} · échéance {formaterDate(c.dateEcheance)}
                           </span>
                         </span>
                         <Pastille ton="info">{pourcentage} %</Pastille>
@@ -258,7 +262,7 @@ async function Accueil() {
                   <span className="flex min-w-0 flex-1 flex-col gap-1">
                     <span className="line-clamp-2 font-semibold">{c.caisse.nom}</span>
                     <span className="text-xs text-muted-foreground">
-                      {c.caisse.type === "TONTINE" ? `Cycle ${c.numero}` : LIBELLES_TYPE.COLLECTE} · échéance {formaterDate(c.dateEcheance)}
+                      {c.caisse.type === "TONTINE" ? `Cycle ${c.numero}` : LIBELLES_TYPE[c.caisse.type]} · échéance {formaterDate(c.dateEcheance)}
                     </span>
                     <span className="h-1.5 overflow-hidden rounded-full bg-muted">
                       <span

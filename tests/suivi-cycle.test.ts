@@ -199,3 +199,28 @@ describe("par cellule (phase 10)", () => {
     );
   });
 });
+
+describe("mensualité : à jour et reste portent sur le dû à ce jour", () => {
+  // 500 × 12 = 6 000 ; on est au 3e mois : 1 500 dus à ce jour, dont 1 000 pour les mois terminés.
+  const mois3 = { montantDu: 6_000, exigible: 1_500, echu: 1_000 };
+  const s = calculerSuivi([E("A", null, 1_500, mois3), E("B", null, 1_000, mois3), E("C", null, 500, mois3), E("D", null, 3_000, mois3)], echeance, apres);
+
+  it("à jour dès que le dû à ce jour est versé ; en retard seulement pour les mois terminés", () => {
+    expect(s.actifs.map((l) => [l.nom, l.statut, l.reste, l.enRetard])).toEqual([
+      ["A", "PAYE", 0, false],
+      ["B", "PARTIEL", 500, false],
+      ["C", "PARTIEL", 1_000, true],
+      ["D", "PAYE", 0, false],
+    ]);
+    expect(s.totaux).toMatchObject({ attendu: 24_000, recu: 6_000, payes: 2 });
+  });
+
+  it("avant le premier mois : rien de dû, tout le monde à jour", () => {
+    const avantDebut = calculerSuivi([E("A", null, 0, { montantDu: 6_000, exigible: 0, echu: 0 })], echeance, avant);
+    expect(avantDebut.actifs[0]).toMatchObject({ statut: "PAYE", aJour: true, reste: 0, enRetard: false });
+  });
+
+  it("tableau de bord : pas à jour d'après le dû à ce jour", () => {
+    expect(resumerCycle([{ montantDu: 6_000, paye: 1_500, exigible: 1_500 }, { montantDu: 6_000, paye: 0, exigible: 1_500 }], echeance, avant).pasAJour).toBe(1);
+  });
+});
