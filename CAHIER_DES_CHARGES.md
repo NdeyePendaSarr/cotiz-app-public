@@ -306,7 +306,7 @@ La v0 est terminée quand chaque case est cochée et qu'un vrai cycle a été g�
 
 - [x] Connexion et déconnexion par e-mail + mot de passe (comptes créés dans le tableau de bord Supabase).
 - [x] Une utilisatrice ne voit jamais les données d'une autre (testé avec 2 comptes).
-- [ ] 3 caisses créées, 30+ membres chacune, dont des personnes partagées non dupliquées.
+- [ ] 3 caisses de types différents en usage réel (collecte du séminaire, compte gardé, mensualité de la cellule), dont une de plus de 30 membres, sans doublon de personnes. Reformulé le 03/11/2026 avec la trésorière (ancien critère : 3 caisses de 30+ membres chacune).
 - [x] Ouvrir un cycle crée les échéances de tous les membres actifs.
 - [x] Coller un SMS Wave réel crée un paiement avec montant, nom, numéro, date et référence corrects.
 - [x] Coller deux fois le même SMS ne crée qu'un paiement.
