@@ -330,7 +330,7 @@ La v0 est terminée quand chaque case est cochée et qu'un vrai cycle a été g�
 - [x] « Valider les sûrs » ne valide que des paiements sans décision à prendre.
 - [x] Les versés importés peuvent être datés (SMS ignoré, SMS ou modèle Wave, modèle Orange Money, date à la main).
 - [x] Deux validations simultanées du même paiement n'affectent jamais plus que son montant (testé : `tests/concurrence.integration.ts`).
-- [ ] Après 5 échecs de connexion en 15 minutes pour une adresse depuis un même réseau, cette adresse est bloquée un moment depuis ce réseau (30 échecs par réseau, toutes adresses confondues, bloquent le réseau). Un autre réseau n'est pas bloqué.
+- [ ] Au 5e échec de connexion pour une adresse depuis un même réseau, la connexion est bloquée 10 minutes à partir de cet instant ; chaque essai pendant le blocage affiche les minutes restantes sans le prolonger, puis le compteur repart de zéro (30 échecs par réseau, toutes adresses confondues, bloquent le réseau). Un autre réseau n'est pas bloqué.
 - [ ] Un vrai cycle géré de bout en bout avec Cotiz, sans cahier papier.
 
 ## Instructions pour Claude Code
