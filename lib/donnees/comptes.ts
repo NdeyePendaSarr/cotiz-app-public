@@ -14,7 +14,8 @@ export function obtenirCompte(ownerId: string, caisseId: string) {
       nom: true,
       statut: true,
       createdAt: true,
-      membres: { take: 1, select: { personne: { select: { id: true, nomComplet: true, numeros: { select: { numero: true } } } } } },
+      // Le titulaire : le premier inscrit (ordre stable, même si un compte ancien a un 2e membre).
+      membres: { take: 1, orderBy: [{ dateEntree: "asc" }, { id: "asc" }], select: { personne: { select: { id: true, nomComplet: true, numeros: { select: { numero: true } } } } } },
       mouvements: { orderBy: [{ date: "desc" }, { createdAt: "desc" }], select: CHAMPS_MOUVEMENT },
     },
   });

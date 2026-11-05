@@ -39,7 +39,8 @@ async function inscrire(idCaisse: unknown, idPersonne: unknown) {
 
   // Les deux doivent appartenir à l'utilisatrice connectée.
   const [caisse, personne] = await Promise.all([
-    prisma.caisse.findFirst({ where: { id: caisseId, ownerId, statut: "ACTIVE" }, select: { type: true } }),
+    // Un compte gardé n'a qu'un membre, son titulaire, fixé à la création.
+    prisma.caisse.findFirst({ where: { id: caisseId, ownerId, statut: "ACTIVE", type: { not: "COMPTE_GARDE" } }, select: { type: true } }),
     prisma.personne.count({ where: { id: personneId, ownerId } }),
   ]);
   if (!caisse || !personne) return;
@@ -79,7 +80,8 @@ export async function changerStatutMembre(formData: FormData) {
   if (!saisie.success) return;
 
   const { membreId, statut } = saisie.data;
-  const membre = await prisma.membreCaisse.findFirst({ where: { id: membreId, caisse: { ownerId } }, select: { caisseId: true } });
+  // Le titulaire d'un compte gardé ne se retire pas : le compte resterait sans personne.
+  const membre = await prisma.membreCaisse.findFirst({ where: { id: membreId, caisse: { ownerId, type: { not: "COMPTE_GARDE" } } }, select: { caisseId: true } });
   if (!membre) return;
 
   await prisma.$transaction(async (tx) => {

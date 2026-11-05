@@ -529,7 +529,7 @@ Tu travailles avec une développeuse qui doit pouvoir expliquer chaque choix en 
 - **Audit technique, lots 1 à 3 (31/10/2026)** :
   - **Argent** : verrous de ligne contre la double affectation (validation, validation groupée, annulation, remboursement, bonne volonté, reprise à l'import). « Marquer remboursé » retire la bonne volonté de l'excédent ; un rapprochement dont l'excédent est remboursé ne peut plus être annulé.
   - **Données** : origine des paiements en colonnes (reprise automatique des anciens marqueurs de la note), historique financier protégé, index, `CHECK (montant > 0)`. Voir « Schéma de données ».
-  - **Sécurité** : 5 échecs de connexion en 15 minutes pour une adresse → refus temporaire, sans interroger Supabase. Pages d'erreur en français. `npm audit --omit=dev` : 0 vulnérabilité.
+  - **Sécurité** : limite des échecs de connexion (règle à jour dans les critères d'acceptation et le lot 2 du 05/11/2026). Pages d'erreur en français. `npm audit --omit=dev` : 0 vulnérabilité.
   - **Performance** : les cotisations dues sont lues en une seule requête SQL paramétrée (seules les échéances encore dues remontent) ; compteurs de navigation mis en cache par page ; historique limité aux 12 derniers cycles.
 - **Audit du 05/11/2026, lot 1 (argent et solde)** :
   - **Solde** : retiré où qu'il soit (SMS Orange Money, SMS collé d'un bloc, valeur à la ligne suivante). Les textes déjà stockés et le journal d'audit sont purgés par migration.
@@ -538,3 +538,9 @@ Tu travailles avec une développeuse qui doit pouvoir expliquer chaque choix en 
   - **Datation** : un SMS choisi à la main ou un modèle Orange Money d'un autre montant est refusé. La liste ne propose que les SMS du même montant.
   - **Bonne volonté** : montant figé et suppression refusée une fois l'excédent du paiement remboursé.
   - **Montants** : le point ne sépare que les milliers. `5000.00` = 5 000, `1.5` est refusé (formulaires, import, historique d'un compte). Un SMS au-dessus de 10 000 000 FCFA ou daté dans le futur va dans les SMS non lus.
+- **Audit du 05/11/2026, lot 2 (connexion et robustesse)** :
+  - **Cookies de session** : illisibles par JavaScript, HTTPS exigé en production, 30 jours sans utilisation au lieu de 400.
+  - **Connexion** : seul un mauvais mot de passe compte comme un échec ; une panne ou une limite de Supabase affiche « Connexion impossible pour le moment ». Chaque essai est réservé avant d'interroger Supabase, et un bloc IPv6 /64 compte comme un seul réseau.
+  - **Blocage entre réseaux** : pas de compteur par adresse tous réseaux confondus (décision du 05/11/2026) : personne, ailleurs, ne doit pouvoir bloquer la trésorière. Risque accepté : un botnet garde 5 essais par adresse IP.
+  - **Limites** : modèle de datation à 2 000 caractères, historique d'un compte à 500 lignes par import.
+  - **Compte gardé** : ni 2e membre (ajout, création de personne, import de liste), ni retrait du titulaire. Sur un compte ancien à 2 membres, le titulaire reste le premier inscrit.

@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { configSupabase } from "./config";
+import { configSupabase, optionsCookieSession } from "./config";
 
 // Routes accessibles sans session. Tout le reste est privé.
 const ROUTES_PUBLIQUES = ["/connexion"];
@@ -12,6 +12,7 @@ const ROUTES_PUBLIQUES = ["/connexion"];
 export async function rafraichirSession(request: NextRequest) {
   const { url, clePublique } = configSupabase();
   let reponse = NextResponse.next({ request });
+  let entetesAntiCache: Record<string, string> = {};
 
   const supabase = createServerClient(url, clePublique, {
     cookies: {
@@ -21,9 +22,10 @@ export async function rafraichirSession(request: NextRequest) {
       setAll(cookiesAPoser, entetes) {
         for (const { name, value } of cookiesAPoser) request.cookies.set(name, value);
         reponse = NextResponse.next({ request });
-        for (const { name, value, options } of cookiesAPoser) reponse.cookies.set(name, value, options);
+        for (const { name, value, options } of cookiesAPoser) reponse.cookies.set(name, value, optionsCookieSession(options));
         // En-têtes anti-cache : une réponse qui pose un cookie de session ne doit
         // jamais être resservie à quelqu'un d'autre par un CDN.
+        entetesAntiCache = entetes;
         for (const [nom, valeur] of Object.entries(entetes)) reponse.headers.set(nom, valeur);
       },
     },
@@ -36,14 +38,15 @@ export async function rafraichirSession(request: NextRequest) {
   const chemin = request.nextUrl.pathname;
   const routePublique = ROUTES_PUBLIQUES.includes(chemin);
 
-  if (!connectee && !routePublique) return redirigerVers("/connexion", request, reponse);
-  if (connectee && chemin === "/connexion") return redirigerVers("/tableau-de-bord", request, reponse);
+  if (!connectee && !routePublique) return redirigerVers("/connexion", request, reponse, entetesAntiCache);
+  if (connectee && chemin === "/connexion") return redirigerVers("/tableau-de-bord", request, reponse, entetesAntiCache);
   return reponse;
 }
 
-// Une redirection doit garder les cookies éventuellement rafraîchis ci-dessus.
-function redirigerVers(chemin: string, request: NextRequest, reponse: NextResponse) {
+// Une redirection doit garder les cookies éventuellement rafraîchis ci-dessus, et leurs en-têtes anti-cache.
+function redirigerVers(chemin: string, request: NextRequest, reponse: NextResponse, entetesAntiCache: Record<string, string>) {
   const redirection = NextResponse.redirect(new URL(chemin, request.url));
   for (const cookie of reponse.cookies.getAll()) redirection.cookies.set(cookie);
+  for (const [nom, valeur] of Object.entries(entetesAntiCache)) redirection.headers.set(nom, valeur);
   return redirection;
 }

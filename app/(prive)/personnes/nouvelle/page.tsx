@@ -26,7 +26,7 @@ async function Creation({ searchParams }: { searchParams: Promise<Record<string,
   const { id: ownerId } = await exigerUtilisatrice();
   const id = schemaIdentifiant.safeParse(idCaisse);
   const caisse = id.success ? await obtenirCaisse(ownerId, id.data) : null;
-  const inscriptionPossible = caisse?.statut === "ACTIVE";
+  const inscriptionPossible = caisse?.statut === "ACTIVE" && caisse.type !== "COMPTE_GARDE";
 
   return (
     <>

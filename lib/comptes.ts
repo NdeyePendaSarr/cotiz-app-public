@@ -92,6 +92,9 @@ export type AnalyseCompte = { roles: RoleCompte[]; enTete: boolean; lignes: Lign
  * versement et retrait (deux colonnes de montants), ou montant + sens, canal, note. Sans canal : null
  * (celui choisi à l'import). Les lignes de total sont ignorées.
  */
+/** Même plafond que l'import d'une liste : une transaction ne garde pas une connexion indéfiniment. */
+export const LIGNES_MAX_HISTORIQUE = 500;
+
 export function analyserHistoriqueCompte(texte: string): AnalyseCompte {
   const tableau = lireTableau(texte);
   const premiere = tableau.lignes[0]?.cellules ?? [];

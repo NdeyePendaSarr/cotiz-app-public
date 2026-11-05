@@ -42,7 +42,7 @@ async function Ajout({
   const { id: ownerId } = await exigerUtilisatrice();
   const idValide = schemaIdentifiant.safeParse(id);
   const caisse = idValide.success ? await obtenirCaisse(ownerId, idValide.data) : null;
-  if (!caisse || caisse.statut !== "ACTIVE") notFound();
+  if (!caisse || caisse.statut !== "ACTIVE" || caisse.type === "COMPTE_GARDE") notFound();
 
   const personnes = recherche ? rechercherPersonnes(await listerPersonnes(ownerId), recherche) : [];
   const statutDans = (p: (typeof personnes)[number]) => p.membres.find((m) => m.caisseId === caisse.id)?.statut;

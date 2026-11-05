@@ -6,7 +6,7 @@ import { z } from "zod";
 import { journaliser } from "@/lib/audit";
 import { annoncer } from "@/lib/annonce";
 import { exigerUtilisatrice } from "@/lib/auth";
-import { analyserHistoriqueCompte, cleMouvement, type Sens } from "@/lib/comptes";
+import { analyserHistoriqueCompte, cleMouvement, LIGNES_MAX_HISTORIQUE, type Sens } from "@/lib/comptes";
 import { aujourdhui } from "@/lib/cycles/dates";
 import { Canal } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
@@ -147,6 +147,7 @@ export async function importerHistoriqueCompte(caisseId: string, _etat: EtatImpo
   const canal = canalChoisi.success ? canalChoisi.data : null;
 
   const analyse = analyserHistoriqueCompte(texte.data);
+  if (analyse.lignes.length > LIGNES_MAX_HISTORIQUE) return { erreur: `${LIGNES_MAX_HISTORIQUE} lignes maximum par import.` };
   // Doublons : chaque mouvement déjà enregistré « consomme » une ligne identique du tableau.
   const existants = await prisma.mouvementCompte.findMany({ where: { ownerId, caisseId: compte.id }, select: { date: true, sens: true, montant: true } });
   const restants = new Map<string, number>();

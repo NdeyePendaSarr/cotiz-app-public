@@ -16,6 +16,9 @@ import { formaterDate, formaterFCFA, LIBELLES_CANAL } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { verrouillerPaiement, verrouillerPaiementParReference, verrouillerPaiements } from "@/lib/verrous";
 
+// Un modèle rempli tient en quelques lignes ; le plafond borne le coût de sa lecture (expressions régulières).
+const schemaModele = z.string().max(2_000);
+
 /**
  * Rattrapage après un import : chaque versé repris de la liste reçoit la date du SMS ignoré qui
  * était le même argent (lib/import/datation.ts). Rien ne vient du navigateur : l'appariement est
@@ -191,9 +194,9 @@ export async function daterRepriseDepuisModele(repriseId: string, _etat: EtatDat
   const { id: ownerId } = await exigerUtilisatrice();
   const id = schemaIdentifiant.safeParse(repriseId);
   if (!id.success) return { erreur: "Versé introuvable." };
-  const texte = formData.get("texte");
-  if (typeof texte !== "string") return { erreur: "Complète d'abord le modèle." };
-  const { texteSms, reference } = lireModeleWave(texte);
+  const saisie = schemaModele.safeParse(formData.get("texte"));
+  if (!saisie.success) return { erreur: "Complète d'abord le modèle." };
+  const { texteSms, reference } = lireModeleWave(saisie.data);
   if (!reference) return { erreur: "Recopie l'ID de transaction après « ID de transaction : » (il commence par T_)." };
   const lu = preparerCaptureSms(texteSms);
   if (lu.type !== "paiement") return { erreur: "Remplace « JJ » et « HHhMM » par la date et l'heure affichées dans l'application Wave (ex. 31/10/2026 à 10h14)." };
@@ -210,9 +213,9 @@ export async function daterRepriseDepuisModeleOrangeMoney(repriseId: string, _et
   const { id: ownerId } = await exigerUtilisatrice();
   const id = schemaIdentifiant.safeParse(repriseId);
   if (!id.success) return { erreur: "Versé introuvable." };
-  const texte = formData.get("texte");
-  if (typeof texte !== "string") return { erreur: "Complète d'abord le modèle." };
-  const { montant, dateReception, reference } = lireModeleOrangeMoney(texte);
+  const saisie = schemaModele.safeParse(formData.get("texte"));
+  if (!saisie.success) return { erreur: "Complète d'abord le modèle." };
+  const { montant, dateReception, reference } = lireModeleOrangeMoney(saisie.data);
   if (montant === null) return { erreur: "Garde la première ligne du modèle : elle porte le montant du versé." };
   if (!dateReception) return { erreur: "Remplace « JJ » et « HHhMM » par la date et l'heure affichées dans Orange Money (ex. 31/10/2026 à 01h38)." };
   if (!reference) return { erreur: "Recopie la référence après « Référence : » (elle commence par PP)." };

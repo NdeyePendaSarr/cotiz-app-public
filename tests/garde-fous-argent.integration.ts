@@ -96,6 +96,7 @@ describe("datation : montant identique exigé", () => {
     const texte = (ligne: string) => [ligne, `Date : ${dateSms}`, `Référence : PP${Date.now()}.0178.B60701`].filter(Boolean).join("\n");
     expect((await daterRepriseDepuisModeleOrangeMoney(verse.id, undefined, formulaire({ texte: texte("Orange Money · 9 000 FCFA de Awa") })))?.erreur).toContain("pas le même argent");
     expect((await daterRepriseDepuisModeleOrangeMoney(verse.id, undefined, formulaire({ texte: texte("") })))?.erreur).toContain("première ligne");
+    expect((await daterRepriseDepuisModeleOrangeMoney(verse.id, undefined, formulaire({ texte: "\n".repeat(2_001) })))?.erreur).toContain("Complète");
     expect(await daterRepriseDepuisModeleOrangeMoney(verse.id, undefined, formulaire({ texte: texte("Orange Money · 4 000 FCFA de Awa") }))).toBeUndefined();
   });
 });

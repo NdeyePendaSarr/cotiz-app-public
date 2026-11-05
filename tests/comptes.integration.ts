@@ -34,6 +34,9 @@ const { prisma } = await import("@/lib/prisma");
 const caisses = await import("@/app/actions/caisses");
 const comptes = await import("@/app/actions/comptes");
 const rapprochement = await import("@/app/actions/rapprochement");
+const importListe = await import("@/app/actions/import");
+const membres = await import("@/app/actions/membres");
+const personnes = await import("@/app/actions/personnes");
 const lectures = await import("@/lib/donnees/comptes");
 const lecturesSuivi = await import("@/lib/donnees/suivi");
 const lecturesStatistiques = await import("@/lib/donnees/statistiques");
@@ -103,6 +106,38 @@ afterAll(async () => {
 
 const mouvement = (champs: Partial<Record<"date" | "montant" | "sens" | "canal" | "note", string>> = {}) =>
   formulaire({ date: jourIso(aujourdhuiUtc()), montant: "5 000", sens: "RETRAIT", canal: "WAVE", note: "", ...champs });
+
+describe("comptes gardés : un seul membre, son titulaire", () => {
+  const membresDuCompte = () => prisma.membreCaisse.findMany({ where: { caisseId: a.compte.id }, select: { personneId: true, statut: true } });
+
+  it("ni inscription, ni création de personne, ni import de liste, ni retrait du titulaire", async () => {
+    await sansRedirection(membres.ajouterMembre(formulaire({ caisseId: a.compte.id, personneId: a.autre.id })));
+    await sansRedirection(membres.inscrirePersonneExistante(a.compte.id, a.autre.id));
+    const nouvelle = { nomComplet: "Nouvelle personne", cellule: "", aliasWave: "", numeros: "" };
+    expect(await sansRedirection(personnes.creerPersonne(a.compte.id, undefined, formulaire(nouvelle)))).toMatchObject({ erreur: "Caisse introuvable ou archivée." });
+    expect(await sansRedirection(importListe.traiterImport(a.compte.id, undefined, formulaire({ texte: "Prénom\tNom\nAwa\tNdiaye", intention: "importer", canal: "CASH" })))).toMatchObject({ erreur: "Caisse introuvable ou archivée." });
+    const titulaire = await prisma.membreCaisse.findFirstOrThrow({ where: { caisseId: a.compte.id } });
+    await sansRedirection(membres.changerStatutMembre(formulaire({ membreId: titulaire.id, statut: "INACTIF" })));
+    expect(await membresDuCompte()).toEqual([{ personneId: a.frere.id, statut: "ACTIF" }]);
+    expect(await prisma.personne.count({ where: { ownerId: a.utilisatrice.id, nomComplet: "Nouvelle personne" } })).toBe(0);
+  });
+
+  it("compte ancien avec un 2e membre : le titulaire reste le premier inscrit", async () => {
+    const hier = new Date(aujourdhuiUtc().getTime() - JOUR);
+    await prisma.membreCaisse.updateMany({ where: { caisseId: a.compte.id, personneId: a.frere.id }, data: { dateEntree: hier } });
+    const second = await prisma.membreCaisse.create({ data: { caisseId: a.compte.id, personneId: a.autre.id } });
+    try {
+      expect((await lectures.obtenirCompte(a.utilisatrice.id, a.compte.id))?.membres[0].personne.id).toBe(a.frere.id);
+    } finally {
+      await prisma.membreCaisse.delete({ where: { id: second.id } });
+    }
+  });
+
+  it("import d'historique plafonné à 500 lignes", async () => {
+    const texte = ["Date\tVersement\tRetrait", ...Array.from({ length: 501 }, () => "01/01/2026\t1 000\t")].join("\n");
+    expect(await comptes.importerHistoriqueCompte(a.compte.id, undefined, formulaire({ texte, canal: "CASH", intention: "importer" }))).toEqual({ erreur: "500 lignes maximum par import." });
+  });
+});
 
 describe("comptes gardés : isolation", () => {
   it("A ne lit rien du compte de B", async () => {

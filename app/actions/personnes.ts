@@ -82,7 +82,7 @@ export async function creerPersonne(
   if (caisseId) {
     const id = schemaIdentifiant.safeParse(caisseId);
     caisse = id.success
-      ? await prisma.caisse.findFirst({ where: { id: id.data, ownerId, statut: "ACTIVE" }, select: { id: true, type: true } })
+      ? await prisma.caisse.findFirst({ where: { id: id.data, ownerId, statut: "ACTIVE", type: { not: "COMPTE_GARDE" } }, select: { id: true, type: true } })
       : null;
     if (!caisse) return { erreur: "Caisse introuvable ou archivée.", valeurs };
   }

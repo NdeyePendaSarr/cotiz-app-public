@@ -49,7 +49,8 @@ export async function traiterImport(caisseId: string, _etat: EtatImport, formDat
   if (!idValide.success) return { erreur: "Caisse introuvable." };
 
   const caisse = await prisma.caisse.findFirst({
-    where: { id: idValide.data, ownerId, statut: "ACTIVE" },
+    // Un compte gardé a son propre import (historique), sans membre : voir importerHistoriqueCompte.
+    where: { id: idValide.data, ownerId, statut: "ACTIVE", type: { not: "COMPTE_GARDE" } },
     select: {
       id: true,
       type: true,
