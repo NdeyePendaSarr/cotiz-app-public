@@ -135,6 +135,8 @@ export async function capturerSms(_etat: EtatCaptureSms, formData: FormData): Pr
 
 // ─── Saisie manuelle ─────────────────────────────────────────────────────────
 
+class SmsDejaTraite extends Error {}
+
 const CHAMPS_MANUELS = ["canal", "montant", "date", "heure", "personneId", "reference", "note"] as const;
 
 export type EtatSaisieManuelle =
@@ -214,12 +216,15 @@ export async function saisirPaiement(
       });
       await journaliser(tx, { ownerId, entite: "Paiement", entiteId: paiement.id, action: "CREATION", details: { source: "SAISIE_MANUELLE", canal: p.canal, montant: p.montant, reference: p.reference } });
       if (sms) {
-        await tx.smsNonLu.updateMany({ where: { id: sms.id, ownerId, statut: "A_TRAITER" }, data: { statut: "TRAITE" } });
+        // Double envoi : le second trouve le SMS déjà traité, et sa création de paiement est annulée.
+        const { count } = await tx.smsNonLu.updateMany({ where: { id: sms.id, ownerId, statut: "A_TRAITER" }, data: { statut: "TRAITE" } });
+        if (count === 0) throw new SmsDejaTraite();
         await journaliser(tx, { ownerId, entite: "SmsNonLu", entiteId: sms.id, action: "TRAITEMENT", details: { paiementId: paiement.id } });
       }
       return paiement;
     });
   } catch (e) {
+    if (e instanceof SmsDejaTraite) return { erreur: "Ce SMS a déjà été traité.", valeurs };
     if (estDoublonEnBase(e)) return { erreur: "Cette référence vient d'être enregistrée.", valeurs };
     throw e;
   }

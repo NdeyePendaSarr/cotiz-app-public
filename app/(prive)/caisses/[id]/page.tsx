@@ -100,7 +100,7 @@ async function DetailCaisse({
   // Suivi du cycle ouvert (ou du dernier cycle d'une collecte terminée).
   // Mensualité : « à jour », reste et relances portent sur ce qui est dû à ce jour, pas sur toute l'année.
   const lignesSuivi = donnees ? (mensualite ? enrichirMensualite(donnees.lignes, caisse, jour) : donnees.lignes) : [];
-  const suivi = donnees ? calculerSuivi(lignesSuivi, donnees.cycle.dateEcheance, jour) : null;
+  const suivi = donnees ? calculerSuivi(lignesSuivi, donnees.cycle.dateEcheance, jour, donnees.totalArrieres) : null;
   const grilleMois = mensualite && donnees && caisse.moisDebut && caisse.nombreMois ? construireGrilleMois(donnees.lignes, caisse.montantCotisation, caisse.moisDebut, caisse.nombreMois, jour) : null;
   const numeroMois = mensualite && caisse.moisDebut && caisse.nombreMois ? moisEnCours(caisse.moisDebut, caisse.nombreMois, jour) : 0;
   const vues: { vue: Vue; libelle: string }[] = [

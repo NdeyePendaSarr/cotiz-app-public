@@ -64,6 +64,10 @@ export type ContexteCaisse = {
    * un réimport peut corriger leur canal (jamais leur montant).
    */
   reprises?: Record<string, { paiementId: string; canal: CanalLu }>;
+  /** Déjà affecté à l'échéance du cycle ouvert, par personne : un versé plus élevé est signalé. */
+  dejaVerse?: Record<string, number>;
+  /** Montants de versés repris annulés ou ignorés depuis, par personne : jamais recréés. */
+  reprisesEnAttente?: Record<string, number[]>;
 };
 
 /** Choix de la trésorière pour une ligne à trancher : « creer » ou l'id d'une personne proposée. */
@@ -241,6 +245,13 @@ function attribuerVerses(lignes: LigneAnalysee[], lues: LigneLue[], caisse: Cont
         ligne.correctionCanal = { paiementId: reprise.paiementId, de: reprise.canal, vers: canal };
         ligne.messages.push(`Déjà repris d'un import : canal corrigé, ${LIBELLES_CANAL[reprise.canal]} → ${LIBELLES_CANAL[canal]}.`);
       } else ligne.messages.push("Déjà un paiement dans Cotiz : versé ignoré.");
+      // La liste annonce plus que Cotiz : rien n'est créé, la trésorière saisit la différence si elle l'a reçue.
+      const connu = caisse.dejaVerse?.[ligne.personneId] ?? 0;
+      if (caisse.dejaVerse && montant > connu) {
+        ligne.messages.push(`La liste indique ${formaterFCFA(montant)}, Cotiz connaît ${formaterFCFA(connu)} : saisis les ${formaterFCFA(montant - connu)} d'écart s'ils ont bien été reçus.`);
+      }
+    } else if (ligne.personneId && caisse.reprisesEnAttente?.[ligne.personneId]?.includes(montant)) {
+      ligne.messages.push("Ce versé repris a été annulé ou ignoré : il attend au rapprochement, versé ignoré.");
     } else {
       ligne.verse = montant;
       const texteCanal = canalSaisi.get(ligne.numero) ?? "";

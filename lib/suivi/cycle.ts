@@ -35,43 +35,59 @@ export type Suivi = {
   totalArrieres: number;
 };
 
-/** aujourdhui : date du jour à Dakar (minuit UTC), pour « en retard » après l'échéance. */
-export function calculerSuivi(echeances: EcheanceSuivie[], dateEcheance: Date, aujourdhui: Date): Suivi {
+/**
+ * Situation d'un membre sur une échéance : la seule règle de « à jour », reste et statut.
+ * Mensualité : ce qui est dû à ce jour (exigible), pas toute la durée.
+ * Membre retiré : son reste ne compte plus (ni dû, ni relance, ni récap) ; ce qu'il a versé, si.
+ */
+export function situationEcheance(e: { montantDu: number; paye: number; exigible?: number; membreActif: boolean }) {
+  if (!e.membreActif) return { statut: statutEcheance(e.montantDu, e.paye), reste: 0, aJour: true };
+  const du = e.exigible ?? e.montantDu;
+  const statut: StatutEcheance = du === 0 ? (e.paye > 0 ? "PAYE" : "A_VENIR") : statutEcheance(du, e.paye);
+  return { statut, reste: Math.max(0, du - e.paye), aJour: statut === "PAYE" || statut === "A_VENIR" };
+}
+
+/** Attendu d'une échéance : le montant dû, ou seulement ce qu'a versé un membre retiré. */
+const attenduDe = (e: { montantDu: number; paye: number; membreActif: boolean }) => (e.membreActif ? e.montantDu : Math.min(e.paye, e.montantDu));
+
+/**
+ * aujourdhui : date du jour à Dakar (minuit UTC), pour « en retard » après l'échéance.
+ * totalArrieres : arriérés de toute la caisse, y compris ceux d'un membre retiré depuis, qui n'a plus
+ * de ligne sur ce cycle (par défaut, la somme des lignes).
+ */
+export function calculerSuivi(echeances: EcheanceSuivie[], dateEcheance: Date, aujourdhui: Date, totalArrieres?: number): Suivi {
   const lignes: LigneSuivi[] = echeances.map((e) => {
-    const du = e.exigible ?? e.montantDu;
-    // Rien de dû à ce jour (mensualité pas encore commencée) : à jour.
-    const statut = du === 0 ? "PAYE" : statutEcheance(du, e.paye);
-    const aJour = statut === "PAYE";
-    const enRetard = e.echu !== undefined ? e.paye < e.echu : !aJour && aujourdhui > dateEcheance;
-    return { ...e, reste: Math.max(0, du - e.paye), statut, aJour, enRetard };
+    const situation = situationEcheance(e);
+    const enRetard = !e.membreActif ? false : e.echu !== undefined ? e.paye < e.echu : !situation.aJour && aujourdhui > dateEcheance;
+    return { ...e, ...situation, enRetard };
   });
-  const compte = (s: StatutEcheance) => lignes.filter((l) => l.statut === s).length;
-  const attendu = lignes.reduce((s, l) => s + l.montantDu, 0);
+  const actifs = lignes.filter((l) => l.membreActif);
+  const compte = (s: StatutEcheance) => actifs.filter((l) => l.statut === s).length;
+  const attendu = lignes.reduce((s, l) => s + attenduDe(l), 0);
   const recu = lignes.reduce((s, l) => s + Math.min(l.paye, l.montantDu), 0);
   return {
-    actifs: lignes.filter((l) => l.membreActif),
+    actifs,
     retires: lignes.filter((l) => !l.membreActif),
-    totaux: { attendu, recu, reste: attendu - recu, payes: compte("PAYE"), partiels: compte("PARTIEL"), enAttente: compte("EN_ATTENTE"), membres: lignes.length },
-    totalArrieres: echeances.reduce((s, e) => s + e.arriere, 0),
+    totaux: { attendu, recu, reste: attendu - recu, payes: actifs.filter((l) => l.aJour).length, partiels: compte("PARTIEL"), enAttente: compte("EN_ATTENTE"), membres: actifs.length },
+    totalArrieres: totalArrieres ?? echeances.reduce((s, e) => s + e.arriere, 0),
   };
 }
 
 /**
  * Résumé d'un cycle ouvert pour le tableau de bord : reçu sur attendu (même calcul que
- * calculerSuivi : un trop-perçu ne compte pas), membres pas à jour, échéance passée.
+ * calculerSuivi : un trop-perçu ne compte pas), membres actifs et pas à jour, échéance passée.
  */
-export function resumerCycle(echeances: { montantDu: number; paye: number; exigible?: number }[], dateEcheance: Date, aujourdhui: Date) {
-  const attendu = echeances.reduce((s, e) => s + e.montantDu, 0);
+export function resumerCycle(echeances: { montantDu: number; paye: number; exigible?: number; membreActif: boolean }[], dateEcheance: Date, aujourdhui: Date) {
+  const attendu = echeances.reduce((s, e) => s + attenduDe(e), 0);
   const recu = echeances.reduce((s, e) => s + Math.min(e.paye, e.montantDu), 0);
-  // Mensualité : « à jour » = a versé ce qui est dû à ce jour (exigible), pas toute la durée.
-  const pasAJour = echeances.filter((e) => e.paye < (e.exigible ?? e.montantDu)).length;
-  return { attendu, recu, pasAJour, echeancePassee: aujourdhui > dateEcheance };
+  const pasAJour = echeances.filter((e) => !situationEcheance(e).aJour).length;
+  return { attendu, recu, membres: echeances.filter((e) => e.membreActif).length, pasAJour, echeancePassee: aujourdhui > dateEcheance };
 }
 
 export const CRITERES_TRI = { ordre: "Ordre de passage", statut: "Statut", nom: "Nom", reste: "Reste dû", cellule: "Cellule", verse: "Versé" } as const;
 export type CritereTri = keyof typeof CRITERES_TRI;
 
-const RANG_STATUT: Record<StatutEcheance, number> = { EN_ATTENTE: 0, PARTIEL: 1, PAYE: 2 };
+const RANG_STATUT: Record<StatutEcheance, number> = { EN_ATTENTE: 0, PARTIEL: 1, PAYE: 2, A_VENIR: 3 };
 const parNom = (a: LigneSuivi, b: LigneSuivi) => a.nom.localeCompare(b.nom, "fr");
 const parOrdre = (a: LigneSuivi, b: LigneSuivi) => (a.ordre ?? Infinity) - (b.ordre ?? Infinity) || parNom(a, b);
 
@@ -108,11 +124,12 @@ export function totauxParCellule(suivi: Suivi): TotauxCellule[] {
   if (!lignes.some((l) => l.cellule)) return [];
   return cellulesDu(lignes).map((cellule) => {
     const siennes = lignes.filter((l) => (l.cellule || SANS_CELLULE) === cellule);
+    const actifs = siennes.filter((l) => l.membreActif);
     return {
       cellule,
-      membres: siennes.length,
-      payes: siennes.filter((l) => l.aJour).length,
-      attendu: siennes.reduce((s, l) => s + l.montantDu, 0),
+      membres: actifs.length,
+      payes: actifs.filter((l) => l.aJour).length,
+      attendu: siennes.reduce((s, l) => s + attenduDe(l), 0),
       recu: siennes.reduce((s, l) => s + Math.min(l.paye, l.montantDu), 0),
     };
   });

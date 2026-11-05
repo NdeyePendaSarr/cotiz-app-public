@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculerSuivi, construireRecap, resumerCycle, totauxParCellule, trierSuivi, type EcheanceSuivie } from "@/lib/suivi/cycle";
+import { calculerSuivi, construireRecap, resumerCycle, situationEcheance, totauxParCellule, trierSuivi, type EcheanceSuivie } from "@/lib/suivi/cycle";
 
 const echeance = new Date("2026-11-05T00:00:00.000Z");
 const avant = new Date("2026-11-01T00:00:00.000Z");
@@ -40,14 +40,18 @@ describe("calculerSuivi : statuts justes", () => {
     ]);
   });
 
-  it("membres retirés à part, mais comptés dans les totaux du cycle", () => {
-    expect(s.retires.map((l) => l.nom)).toEqual(["Coumba Retirée"]);
-    expect(s.totaux).toEqual({ attendu: 50_000, recu: 27_000, reste: 23_000, payes: 2, partiels: 2, enAttente: 1, membres: 5 });
+  it("membre retiré : à part, seul ce qu'il a versé compte (ni reste, ni statut dans les totaux)", () => {
+    expect(s.retires.map((l) => [l.nom, l.statut, l.reste, l.aJour, l.enRetard])).toEqual([["Coumba Retirée", "PARTIEL", 0, true, false]]);
+    expect(s.totaux).toEqual({ attendu: 43_000, recu: 27_000, reste: 16_000, payes: 2, partiels: 1, enAttente: 1, membres: 4 });
+  });
+
+  it("arriérés de toute la caisse : un membre retiré sans ligne sur ce cycle compte encore", () => {
+    expect(calculerSuivi(echeances, echeance, avant, 7_000).totalArrieres).toBe(7_000);
   });
 
   it("arriérés : à part, jamais dans les totaux du cycle", () => {
     expect(s.totalArrieres).toBe(2_000);
-    expect(s.totaux.attendu).toBe(50_000);
+    expect(s.totaux.attendu).toBe(43_000);
   });
 
   it("le reçu ne compte pas au-delà du dû (l'excédent est à rembourser, ailleurs)", () => {
@@ -92,16 +96,15 @@ describe("construireRecap", () => {
   const s = calculerSuivi(echeances, echeance, avant);
   const contexte = { caisse: "Tontine mensuelle des amies", cycle: 1, dateEcheance: echeance };
 
-  it("détaillé : nombre à jour + qui doit encore combien (retirés compris)", () => {
+  it("détaillé : nombre à jour + qui doit encore combien (jamais un membre retiré)", () => {
     expect(espaces(construireRecap(s, contexte, "detaille"))).toBe(
       [
         "Tontine mensuelle des amies, cycle 1 (échéance le 5 novembre 2026)",
-        "À jour : 2 sur 5",
+        "À jour : 2 sur 4",
         "",
         "Reste à verser :",
         "- Fatou Kane : 10 000 FCFA",
         "- Ibrahima Ba : 6 000 FCFA",
-        "- Coumba Retirée : 7 000 FCFA",
       ].join("\n"),
     );
   });
@@ -111,9 +114,9 @@ describe("construireRecap", () => {
     expect(texte).toBe(
       [
         "Tontine mensuelle des amies, cycle 1 (échéance le 5 novembre 2026)",
-        "À jour : 2 sur 5",
-        "Partiels : 2, rien versé : 1",
-        "Reçu : 27 000 FCFA sur 50 000 FCFA (reste 23 000 FCFA)",
+        "À jour : 2 sur 4",
+        "Partiels : 1, rien versé : 1",
+        "Reçu : 27 000 FCFA sur 43 000 FCFA (reste 16 000 FCFA)",
       ].join("\n"),
     );
     expect(texte).not.toContain("Fatou");
@@ -127,14 +130,18 @@ describe("construireRecap", () => {
 
 describe("resumerCycle (tableau de bord)", () => {
   const lignes = [
-    { montantDu: 10_000, paye: 10_000 },
-    { montantDu: 10_000, paye: 15_000 }, // trop-perçu : compte 10 000 dans le reçu
-    { montantDu: 10_000, paye: 4_000 },
-    { montantDu: 10_000, paye: 0 },
+    { montantDu: 10_000, paye: 10_000, membreActif: true },
+    { montantDu: 10_000, paye: 15_000, membreActif: true }, // trop-perçu : compte 10 000 dans le reçu
+    { montantDu: 10_000, paye: 4_000, membreActif: true },
+    { montantDu: 10_000, paye: 0, membreActif: true },
   ];
 
   it("reçu plafonné à l'attendu, membres pas à jour", () => {
-    expect(resumerCycle(lignes, echeance, avant)).toEqual({ attendu: 40_000, recu: 24_000, pasAJour: 2, echeancePassee: false });
+    expect(resumerCycle(lignes, echeance, avant)).toEqual({ attendu: 40_000, recu: 24_000, membres: 4, pasAJour: 2, echeancePassee: false });
+  });
+
+  it("membre retiré : seul ce qu'il a versé est attendu, et il n'est jamais « pas à jour »", () => {
+    expect(resumerCycle([...lignes, { montantDu: 10_000, paye: 3_000, membreActif: false }], echeance, avant)).toEqual({ attendu: 43_000, recu: 27_000, membres: 4, pasAJour: 2, echeancePassee: false });
   });
 
   it("échéance passée seulement après le jour de l'échéance", () => {
@@ -143,7 +150,7 @@ describe("resumerCycle (tableau de bord)", () => {
   });
 
   it("cycle sans échéance", () => {
-    expect(resumerCycle([], echeance, avant)).toEqual({ attendu: 0, recu: 0, pasAJour: 0, echeancePassee: false });
+    expect(resumerCycle([], echeance, avant)).toEqual({ attendu: 0, recu: 0, membres: 0, pasAJour: 0, echeancePassee: false });
   });
 });
 
@@ -215,12 +222,19 @@ describe("mensualité : à jour et reste portent sur le dû à ce jour", () => {
     expect(s.totaux).toMatchObject({ attendu: 24_000, recu: 6_000, payes: 2 });
   });
 
-  it("avant le premier mois : rien de dû, tout le monde à jour", () => {
+  it("avant le premier mois : « Pas commencée », à jour, sans reste ; versé d'avance : payé", () => {
     const avantDebut = calculerSuivi([E("A", null, 0, { montantDu: 6_000, exigible: 0, echu: 0 })], echeance, avant);
-    expect(avantDebut.actifs[0]).toMatchObject({ statut: "PAYE", aJour: true, reste: 0, enRetard: false });
+    expect(avantDebut.actifs[0]).toMatchObject({ statut: "A_VENIR", aJour: true, reste: 0, enRetard: false });
+    expect(avantDebut.totaux).toMatchObject({ payes: 1, membres: 1 });
+    expect(situationEcheance({ montantDu: 6_000, paye: 500, exigible: 0, membreActif: true })).toEqual({ statut: "PAYE", reste: 0, aJour: true });
+  });
+
+  it("fiche personne : à jour au 1er mois, pas « Reste 5 500 » ; membre retiré : plus de reste", () => {
+    expect(situationEcheance({ montantDu: 6_000, paye: 500, exigible: 500, membreActif: true })).toEqual({ statut: "PAYE", reste: 0, aJour: true });
+    expect(situationEcheance({ montantDu: 6_000, paye: 500, exigible: 500, membreActif: false })).toEqual({ statut: "PARTIEL", reste: 0, aJour: true });
   });
 
   it("tableau de bord : pas à jour d'après le dû à ce jour", () => {
-    expect(resumerCycle([{ montantDu: 6_000, paye: 1_500, exigible: 1_500 }, { montantDu: 6_000, paye: 0, exigible: 1_500 }], echeance, avant).pasAJour).toBe(1);
+    expect(resumerCycle([{ montantDu: 6_000, paye: 1_500, exigible: 1_500, membreActif: true }, { montantDu: 6_000, paye: 0, exigible: 1_500, membreActif: true }], echeance, avant).pasAJour).toBe(1);
   });
 });

@@ -17,7 +17,7 @@ const TONS = {
 
 export type Ton = keyof typeof TONS;
 
-const TON_STATUT: Record<StatutEcheance, Ton> = { PAYE: "paye", PARTIEL: "partiel", EN_ATTENTE: "attente" };
+const TON_STATUT: Record<StatutEcheance, Ton> = { PAYE: "paye", PARTIEL: "partiel", EN_ATTENTE: "attente", A_VENIR: "attente" };
 
 /** Petite étiquette arrondie (statut, type de caisse, état d'une ligne d'import…). */
 export function Pastille({ ton, children, className }: { ton: Ton; children: React.ReactNode; className?: string }) {

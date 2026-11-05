@@ -86,15 +86,23 @@ export async function traiterImport(caisseId: string, _etat: EtatImport, formDat
   const existantes = await listerPersonnesPourImport(ownerId, caisse.id);
   const ordresPris = caisse.membres.map((m) => m.ordrePassage).filter((o): o is number => o !== null);
   const cycleOuvert = caisse.cycles[0] ?? null;
-  // Membres dont l'échéance du cycle ouvert a déjà un paiement : leur versé sera ignoré.
-  const dejaPayees = cycleOuvert
-    ? (
-        await prisma.echeance.findMany({
-          where: { cycleId: cycleOuvert.id, allocations: { some: {} }, membre: { caisse: { ownerId } } },
-          select: { membre: { select: { personneId: true } } },
-        })
-      ).map((e) => e.membre.personneId)
+  // Membres dont l'échéance du cycle ouvert a déjà un paiement : leur versé sera ignoré,
+  // et signalé s'il dépasse ce que Cotiz connaît déjà.
+  const echeancesPayees = cycleOuvert
+    ? await prisma.echeance.findMany({
+        where: { cycleId: cycleOuvert.id, allocations: { some: {} }, membre: { caisse: { ownerId } } },
+        select: { allocations: { select: { montant: true } }, membre: { select: { personneId: true } } },
+      })
     : [];
+  const dejaPayees = echeancesPayees.map((e) => e.membre.personneId);
+  const dejaVerse = Object.fromEntries(echeancesPayees.map((e) => [e.membre.personneId, e.allocations.reduce((s, a) => s + a.montant, 0)]));
+  // Versés repris annulés ou ignorés, en attente de décision : le réimport ne les recrée pas.
+  const repriseEnAttente = await prisma.paiement.findMany({
+    where: { ownerId, ...REPRISE, personneId: { not: null }, statut: { not: "RAPPROCHE" } },
+    select: { personneId: true, montant: true },
+  });
+  const reprisesEnAttente: Record<string, number[]> = {};
+  for (const r of repriseEnAttente) (reprisesEnAttente[r.personneId!] ??= []).push(r.montant);
   // Paiements créés par un import précédent sur ce cycle : le réimport peut corriger leur canal.
   const reprises = cycleOuvert
     ? Object.fromEntries(
@@ -106,7 +114,7 @@ export async function traiterImport(caisseId: string, _etat: EtatImport, formDat
         ).map((p) => [p.personneId!, { paiementId: p.id, canal: p.canal }]),
       )
     : {};
-  const contexte = { type: caisse.type, ordresPris, cycleOuvert: Boolean(cycleOuvert), dejaPayees, reprises, montantCotisation: montantDuParMembre(caisse) };
+  const contexte = { type: caisse.type, ordresPris, cycleOuvert: Boolean(cycleOuvert), dejaPayees, dejaVerse, reprises, reprisesEnAttente, montantCotisation: montantDuParMembre(caisse) };
   const lignes = analyserImport(lues, existantes, contexte, choix);
   const resume = resumer(lignes, contexte);
 
@@ -140,10 +148,12 @@ export async function traiterImport(caisseId: string, _etat: EtatImport, formDat
       async (tx) => {
         for (const l of aImporter) {
           if (l.statut === "reactivation" && l.personneId) {
-            await tx.membreCaisse.update({
+            const reactive = await tx.membreCaisse.update({
               where: { caisseId_personneId: { caisseId: caisse.id, personneId: l.personneId } },
               data: { statut: "ACTIF", ordrePassage: null },
+              select: { id: true },
             });
+            await journaliser(tx, { ownerId, entite: "MembreCaisse", entiteId: reactive.id, action: "MODIFICATION", details: { statut: "ACTIF", source: "IMPORT" } });
             personneDeLigne.set(l.numero, l.personneId);
             continue;
           }
@@ -161,7 +171,8 @@ export async function traiterImport(caisseId: string, _etat: EtatImport, formDat
             personneId = creee.id;
           }
           if (!personneId) throw new Error("Ligne sans personne");
-          await tx.membreCaisse.create({ data: { caisseId: caisse.id, personneId, ordrePassage: l.ordre } });
+          const inscrit = await tx.membreCaisse.create({ data: { caisseId: caisse.id, personneId, ordrePassage: l.ordre }, select: { id: true } });
+          await journaliser(tx, { ownerId, entite: "MembreCaisse", entiteId: inscrit.id, action: "CREATION", details: { caisseId: caisse.id, personneId, source: "IMPORT" } });
           personneDeLigne.set(l.numero, personneId);
         }
         for (const l of aCompleter) if (l.personneId) personneDeLigne.set(l.numero, l.personneId);
@@ -241,6 +252,9 @@ async function reprendreVerse(
   await verrouillerEcheance(tx, p.ownerId, echeance.id);
   const deja = await tx.allocation.count({ where: { echeanceId: echeance.id } });
   if (deja > 0) return;
+  // Le même versé, annulé ou ignoré depuis l'import précédent, attend une décision : pas de doublon.
+  const enAttente = await tx.paiement.count({ where: { ownerId: p.ownerId, ...REPRISE, personneId: p.personneId, montant: p.montant, statut: { not: "RAPPROCHE" } } });
+  if (enAttente > 0) return;
 
   const maintenant = new Date();
   const alloue = Math.min(p.montant, echeance.montantDu);

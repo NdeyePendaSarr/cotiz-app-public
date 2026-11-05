@@ -6,7 +6,8 @@ import { z } from "zod";
 import { journaliser } from "@/lib/audit";
 import { annoncer } from "@/lib/annonce";
 import { exigerUtilisatrice } from "@/lib/auth";
-import { analyserHistoriqueCompte, cleMouvement, LIGNES_MAX_HISTORIQUE, type Sens } from "@/lib/comptes";
+import { analyserHistoriqueCompte, cleMouvement, LIGNES_MAX_HISTORIQUE, lignesNouvelles, type Sens } from "@/lib/comptes";
+import { verrouillerCaisse } from "@/lib/verrous";
 import { aujourdhui } from "@/lib/cycles/dates";
 import { Canal } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
@@ -179,17 +180,25 @@ export async function importerHistoriqueCompte(caisseId: string, _etat: EtatImpo
   if (apercu.sansCanal > 0 && !canal) return { apercu, erreur: "Choisis le canal des lignes qui n'en ont pas." };
   if (aImporter.some((l) => l.date && l.date > aujourdhui().toISOString().slice(0, 10))) return { apercu, erreur: "Une date est dans le futur : corrige le tableau." };
 
-  await prisma.$transaction(
+  const importees = await prisma.$transaction(
     async (tx) => {
-      for (const l of aImporter) {
-        const donnees = { date: new Date(`${l.date}T00:00:00.000Z`), montant: l.montant!, sens: l.sens!, canal: (l.canal ?? canal)!, note: l.note };
+      // Verrou puis relecture : un double envoi attend ici, puis retrouve ses lignes déjà enregistrées.
+      await verrouillerCaisse(tx, ownerId, compte.id);
+      const enregistres = await tx.mouvementCompte.findMany({ where: { ownerId, caisseId: compte.id }, select: { date: true, sens: true, montant: true } });
+      const aEcrire = lignesNouvelles(
+        lignes.filter((l) => !l.erreur).map((l) => ({ date: new Date(`${l.date}T00:00:00.000Z`), montant: l.montant!, sens: l.sens!, canal: (l.canal ?? canal)!, note: l.note })),
+        enregistres,
+      );
+      for (const donnees of aEcrire) {
         const m = await tx.mouvementCompte.create({ data: { ownerId, caisseId: compte.id, ...donnees }, select: { id: true } });
         await journaliser(tx, { ownerId, entite: "MouvementCompte", entiteId: m.id, action: "CREATION", details: { ...resumer(donnees), source: "IMPORT" } });
       }
+      return aEcrire;
     },
     { timeout: 30_000 },
   );
-  await annoncer(`${aImporter.length} mouvement${aImporter.length > 1 ? "s" : ""} importé${aImporter.length > 1 ? "s" : ""} ✓`);
+  const total = (sens: Sens) => importees.filter((l) => l.sens === sens).reduce((s, l) => s + l.montant, 0);
+  await annoncer(`${importees.length} mouvement${importees.length > 1 ? "s" : ""} importé${importees.length > 1 ? "s" : ""} ✓`);
   refresh();
-  return { termine: { importes: aImporter.length, versements: apercu.versements, retraits: apercu.retraits } };
+  return { termine: { importes: importees.length, versements: total("VERSEMENT"), retraits: total("RETRAIT") } };
 }

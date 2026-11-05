@@ -22,7 +22,7 @@ export function obtenirPersonne(ownerId: string, id: string) {
     include: {
       numeros: { orderBy: { numero: "asc" } },
       membres: {
-        include: { caisse: { select: { id: true, nom: true, type: true, statut: true } } },
+        include: { caisse: { select: { id: true, nom: true, type: true, statut: true, montantCotisation: true, moisDebut: true, nombreMois: true } } },
         orderBy: { caisse: { nom: "asc" } },
       },
     },

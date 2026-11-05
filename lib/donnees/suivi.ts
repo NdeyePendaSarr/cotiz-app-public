@@ -79,14 +79,20 @@ export async function payeesParImport(client: Prisma.TransactionClient | typeof 
   return parPersonne;
 }
 
-/** Total des paiements de la personne reçus depuis une date (hors paiements ignorés). */
+/** Total des paiements de la personne reçus depuis une date (hors paiements ignorés), net des excédents remboursés. */
 export async function verseDepuis(ownerId: string, personneId: string, depuis: Date) {
-  const { _sum } = await prisma.paiement.aggregate({
-    // L'argent qu'elle confie sur un compte gardé n'est pas une cotisation : exclu.
-    where: { ownerId, personneId, statut: { not: "IGNORE" }, mouvementCompte: null, dateReception: { gte: depuis } },
-    _sum: { montant: true },
-  });
-  return _sum.montant ?? 0;
+  // L'argent qu'elle confie sur un compte gardé n'est pas une cotisation : exclu.
+  const paiements = { ownerId, personneId, statut: { not: "IGNORE" }, mouvementCompte: null, dateReception: { gte: depuis } } satisfies Prisma.PaiementWhereInput;
+  const [{ _sum }, rembourses] = await Promise.all([
+    prisma.paiement.aggregate({ where: paiements, _sum: { montant: true } }),
+    // Un excédent remboursé est de l'argent rendu : il n'est plus versé.
+    prisma.paiement.findMany({
+      where: { ...paiements, rembourseLe: { not: null } },
+      select: { montant: true, allocations: { select: { montant: true } }, don: { select: { montant: true } } },
+    }),
+  ]);
+  const rendu = rembourses.reduce((s, p) => s + Math.max(0, excedentPaiement(p.montant, p.allocations, p.don)), 0);
+  return (_sum.montant ?? 0) - rendu;
 }
 
 /**
@@ -141,7 +147,9 @@ export async function suiviCaisse(ownerId: string, caisseId: string) {
     paye: e.allocations.reduce((s, a) => s + a.montant, 0),
     arriere: arrieres.get(e.membre.id) ?? 0,
   }));
-  return { cycle, lignes };
+  // Sur toute la caisse : un membre retiré sans échéance sur ce cycle n'a pas de ligne, mais doit encore.
+  const totalArrieres = [...arrieres.values()].reduce((s, n) => s + n, 0);
+  return { cycle, lignes, totalArrieres };
 }
 
 /** Cycles ouverts des caisses actives, échéance la plus proche d'abord (tableau de bord). */
@@ -155,12 +163,12 @@ export async function cyclesOuverts(ownerId: string) {
       dateDebut: true,
       dateEcheance: true,
       caisse: { select: { id: true, nom: true, type: true, montantCotisation: true, moisDebut: true, nombreMois: true } },
-      echeances: { select: { montantDu: true, allocations: { select: { montant: true } } } },
+      echeances: { select: { montantDu: true, allocations: { select: { montant: true } }, membre: { select: { statut: true } } } },
     },
   });
   return cycles.map(({ echeances, ...c }) => ({
     ...c,
-    echeances: echeances.map((e) => ({ montantDu: e.montantDu, paye: e.allocations.reduce((s, a) => s + a.montant, 0) })),
+    echeances: echeances.map((e) => ({ montantDu: e.montantDu, paye: e.allocations.reduce((s, a) => s + a.montant, 0), membreActif: e.membre.statut === "ACTIF" })),
   }));
 }
 

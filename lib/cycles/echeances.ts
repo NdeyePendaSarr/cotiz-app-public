@@ -36,7 +36,8 @@ export async function assurerEcheanceMembre(tx: Tx, membreCaisseId: string, cais
  * gardée sinon (l'argent reçu doit rester tracé).
  */
 export async function retirerEcheanceMembre(tx: Tx, membreCaisseId: string) {
-  await tx.echeance.deleteMany({
+  const { count } = await tx.echeance.deleteMany({
     where: { membreCaisseId, cycle: { statut: "OUVERT" }, allocations: { none: {} } },
   });
+  return count;
 }

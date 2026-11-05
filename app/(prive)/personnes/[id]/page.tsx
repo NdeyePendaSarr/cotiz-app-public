@@ -14,7 +14,8 @@ import { aujourdhui } from "@/lib/cycles/dates";
 import { obtenirPersonne, situationPersonne } from "@/lib/donnees/personnes";
 import { resumesComptes } from "@/lib/donnees/comptes";
 import { historiquePersonne, verseDepuis } from "@/lib/donnees/suivi";
-import { statutEcheance } from "@/lib/echeances/statut";
+import { situationMensualite } from "@/lib/mensualite";
+import { situationEcheance } from "@/lib/suivi/cycle";
 import { formaterDateHeure, formaterFCFA, LIBELLES_CANAL, LIBELLES_TYPE } from "@/lib/format";
 import { construireHistorique } from "@/lib/suivi/historique";
 import { formaterTelephone } from "@/lib/telephone";
@@ -41,7 +42,8 @@ async function FichePersonne({ params }: { params: Promise<{ id: string }> }) {
   const idValide = schemaIdentifiant.safeParse(id);
   const personne = idValide.success ? await obtenirPersonne(ownerId, idValide.data) : null;
   if (!personne) notFound();
-  const annee = aujourdhui().getUTCFullYear();
+  const jour = aujourdhui();
+  const annee = jour.getUTCFullYear();
   const [{ parMembre, paiements }, entrees, verse, comptes] = await Promise.all([
     situationPersonne(ownerId, personne.id),
     historiquePersonne(ownerId, personne.id),
@@ -94,8 +96,12 @@ async function FichePersonne({ params }: { params: Promise<{ id: string }> }) {
           <Bloc>
             {personne.membres.map((m) => {
               const echeance = parMembre.get(m.id);
-              const statut = echeance ? statutEcheance(echeance.montantDu, echeance.paye) : null;
-              const reste = echeance ? Math.max(0, echeance.montantDu - echeance.paye) : 0;
+              // Même règle que la page de la caisse : mensualité = dû à ce jour ; membre retiré = plus de reste.
+              const { moisDebut, nombreMois, montantCotisation } = m.caisse;
+              const exigible = echeance && m.caisse.type === "MENSUALITE" && moisDebut && nombreMois ? situationMensualite(echeance.paye, montantCotisation, moisDebut, nombreMois, jour).exigible : undefined;
+              const situation = echeance ? situationEcheance({ ...echeance, exigible, membreActif: m.statut === "ACTIF" }) : null;
+              const statut = situation?.statut ?? null;
+              const reste = situation?.reste ?? 0;
               return (
                 <Link key={m.id} href={`/caisses/${m.caisse.id}`} className={LIGNE}>
                   <span className="flex min-w-0 flex-1 flex-col gap-0.5">

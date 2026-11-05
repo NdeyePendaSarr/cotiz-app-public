@@ -9,9 +9,11 @@ import { describe, expect, it } from "vitest";
 
 const RACINE = join(__dirname, "..");
 const DOSSIERS = ["app", "lib"];
-const MUTATION = /\b(tx|prisma)\.(paiement|allocation|smsNonLu|depense|don|mouvementCompte)\.(create|createMany|createManyAndReturn|update|updateMany|updateManyAndReturn|delete|deleteMany|upsert)\s*\(/g;
+const MUTATION = /\b(tx|prisma)\.(paiement|allocation|smsNonLu|depense|don|mouvementCompte|caisse|membreCaisse)\.(create|createMany|createManyAndReturn|update|updateMany|updateManyAndReturn|delete|deleteMany|upsert)\s*\(/g;
 // Nom de l'entité dans journaliser(tx, { entite: "…" }).
-const ENTITES: Record<string, string> = { paiement: "Paiement", allocation: "Allocation", smsNonLu: "SmsNonLu", depense: "Depense", don: "Don", mouvementCompte: "MouvementCompte" };
+const ENTITES: Record<string, string> = { paiement: "Paiement", allocation: "Allocation", smsNonLu: "SmsNonLu", depense: "Depense", don: "Don", mouvementCompte: "MouvementCompte", caisse: "Caisse", membreCaisse: "MembreCaisse" };
+// L'ordre de passage ne change ni l'argent ni l'appartenance à la caisse : hors journal (cahier).
+const SANS_JOURNAL = new Set(["attribuerOrdre", "echangerOrdres"]);
 
 function fichiersTs(dossier: string): string[] {
   return readdirSync(dossier, { withFileTypes: true }).flatMap((e) => {
@@ -35,7 +37,7 @@ const mutations = DOSSIERS.flatMap((d) => fichiersTs(join(RACINE, d)))
   .flatMap((fichier) => {
     const relatif = fichier.slice(RACINE.length + 1).replaceAll("\\", "/");
     return fonctions(readFileSync(fichier, "utf8"))
-      .filter((f) => f.corps.match(MUTATION))
+      .filter((f) => f.corps.match(MUTATION) && !SANS_JOURNAL.has(f.nom))
       .map((f) => ({ ...f, fichier: relatif, appels: [...f.corps.matchAll(MUTATION)].map((m) => m[0]) }));
   });
 

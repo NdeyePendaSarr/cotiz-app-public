@@ -24,9 +24,14 @@ vi.mock("@/lib/auth", () => ({ exigerUtilisatrice: vi.fn(async () => session.cou
 
 const { prisma } = await import("@/lib/prisma");
 const { capturerSms, saisirPaiement } = await import("@/app/actions/capture");
-const { daterRepriseALaMain, daterRepriseDepuisModeleOrangeMoney } = await import("@/app/actions/datation");
+const { daterRepriseALaMain, daterRepriseAvecSms, daterRepriseDepuisModeleOrangeMoney } = await import("@/app/actions/datation");
 const { modifierDon, supprimerDon } = await import("@/app/actions/dons");
 const { ignorerDoublons } = await import("@/app/actions/remboursement");
+const { changerStatutCaisse, modifierCaisse } = await import("@/app/actions/caisses");
+const { ajouterMembre, changerStatutMembre } = await import("@/app/actions/membres");
+const { importerHistoriqueCompte } = await import("@/app/actions/comptes");
+const { echeancesDues } = await import("@/lib/donnees/rapprochement");
+const { verseDepuis, suiviCaisse } = await import("@/lib/donnees/suivi");
 
 function formulaire(champs: Record<string, string>) {
   const fd = new FormData();
@@ -159,5 +164,113 @@ describe("ignorerDoublons", () => {
     await prisma.mouvementCompte.create({ data: { ownerId, caisseId: compte.id, sens: "VERSEMENT", montant: 2_000, date: jour, canal: "WAVE", paiementId: verse.id } });
     await ignorerDoublons(formulaire({ paiementId: verse.id }));
     expect((await prisma.paiement.findUniqueOrThrow({ where: { id: verse.id } })).statut).toBe("RAPPROCHE");
+  });
+});
+
+describe("règles du 05/11/2026", () => {
+  const collecte = async (nom: string, montant = 2_000) => {
+    const caisse = await prisma.caisse.create({ data: { ownerId, nom, type: "COLLECTE", montantCotisation: montant, dateLimite: new Date("2030-01-15") } });
+    const cycle = await prisma.cycle.create({ data: { caisseId: caisse.id, numero: 1, dateDebut: jour, dateEcheance: new Date("2030-01-15") } });
+    const personne = await prisma.personne.create({ data: { ownerId, nomComplet: `Membre ${nom}` } });
+    const membre = await prisma.membreCaisse.create({ data: { caisseId: caisse.id, personneId: personne.id } });
+    const echeance = await prisma.echeance.create({ data: { cycleId: cycle.id, membreCaisseId: membre.id, montantDu: montant } });
+    return { caisse, cycle, personne, membre, echeance };
+  };
+  const verser = async (personneId: string, echeanceId: string, montant: number, total = montant, rembourseLe: Date | null = null) => {
+    const p = await prisma.paiement.create({ data: { ownerId, canal: "WAVE", source: "SAISIE_MANUELLE", montant: total, personneId, statut: "RAPPROCHE", rapprocheLe: maintenant, dateReception: jour, rembourseLe } });
+    await prisma.allocation.create({ data: { paiementId: p.id, echeanceId, montant } });
+    return p;
+  };
+  const champsCollecte = (nom: string, montant: string) => formulaire({ type: "COLLECTE", nom, montantCotisation: montant, dateLimite: "2030-01-15" });
+
+  it("caisse archivée : plus proposée au rapprochement ; réactivée : de nouveau proposée", async () => {
+    const { caisse, personne } = await collecte("Archivée");
+    expect((await echeancesDues(prisma, ownerId, personne.id))[personne.id]).toHaveLength(1);
+    await changerStatutCaisse(formulaire({ id: caisse.id, statut: "ARCHIVEE" }));
+    expect((await echeancesDues(prisma, ownerId, personne.id))[personne.id]).toBeUndefined();
+    await changerStatutCaisse(formulaire({ id: caisse.id, statut: "ACTIVE" }));
+    expect((await echeancesDues(prisma, ownerId, personne.id))[personne.id]).toHaveLength(1);
+    expect(await prisma.journalAudit.count({ where: { ownerId, entite: "Caisse", entiteId: caisse.id } })).toBe(2);
+  });
+
+  it("membre retiré qui doit encore : proposé, et marqué pour ne jamais être « sûr »", async () => {
+    const { membre, personne, echeance } = await collecte("Retiré");
+    await verser(personne.id, echeance.id, 500);
+    await changerStatutMembre(formulaire({ membreId: membre.id, statut: "INACTIF" }));
+    expect((await echeancesDues(prisma, ownerId, personne.id))[personne.id]).toEqual([expect.objectContaining({ id: echeance.id, membreRetire: true })]);
+    await changerStatutMembre(formulaire({ membreId: membre.id, statut: "ACTIF" }));
+    expect(await prisma.journalAudit.count({ where: { ownerId, entite: "MembreCaisse", entiteId: membre.id } })).toBe(2);
+  });
+
+  it("arriérés : un membre retiré sans échéance sur le cycle en cours reste compté", async () => {
+    const { caisse, cycle, membre } = await collecte("Arriérés");
+    await prisma.cycle.update({ where: { id: cycle.id }, data: { statut: "CLOTURE" } });
+    await prisma.cycle.create({ data: { caisseId: caisse.id, numero: 2, dateDebut: jour, dateEcheance: new Date("2030-02-15") } });
+    await prisma.membreCaisse.update({ where: { id: membre.id }, data: { statut: "INACTIF" } });
+    const suivi = await suiviCaisse(ownerId, caisse.id);
+    expect(suivi?.lignes).toEqual([]);
+    expect(suivi?.totalArrieres).toBe(2_000);
+  });
+
+  it("collecte : montant changé pour tout le monde ; refusé sous le versé ; figé une fois terminée", async () => {
+    const { caisse, personne, echeance, cycle } = await collecte("Montant");
+    await verser(personne.id, echeance.id, 1_500);
+    expect((await modifierCaisse(caisse.id, undefined, champsCollecte("Montant", "1 000")))?.erreur).toContain(personne.nomComplet);
+    expect((await prisma.echeance.findUniqueOrThrow({ where: { id: echeance.id } })).montantDu).toBe(2_000);
+
+    await modifierCaisse(caisse.id, undefined, champsCollecte("Montant", "3 000"));
+    expect((await prisma.echeance.findUniqueOrThrow({ where: { id: echeance.id } })).montantDu).toBe(3_000);
+    const journal = await prisma.journalAudit.findFirstOrThrow({ where: { ownerId, entite: "Caisse", entiteId: caisse.id, action: "MODIFICATION" }, orderBy: { id: "desc" } });
+    expect(journal.details).toMatchObject({ avant: { montantDu: 2_000 }, apres: { montantDu: 3_000 } });
+
+    await prisma.cycle.update({ where: { id: cycle.id }, data: { statut: "CLOTURE" } });
+    expect((await modifierCaisse(caisse.id, undefined, champsCollecte("Montant", "4 000")))?.erreur).toContain("terminée");
+  });
+
+  it("« Versé dans l'année » : net de l'excédent remboursé", async () => {
+    const { personne, echeance } = await collecte("Net");
+    await verser(personne.id, echeance.id, 2_000, 5_000, maintenant);
+    expect(await verseDepuis(ownerId, personne.id, new Date(jour.getTime() - 86_400_000))).toBe(2_000);
+  });
+
+  it("inscription journalisée", async () => {
+    const { caisse } = await collecte("Inscription");
+    const nouvelle = await prisma.personne.create({ data: { ownerId, nomComplet: "Nouvelle inscrite" } });
+    await ajouterMembre(formulaire({ caisseId: caisse.id, personneId: nouvelle.id }));
+    const membre = await prisma.membreCaisse.findFirstOrThrow({ where: { caisseId: caisse.id, personneId: nouvelle.id } });
+    expect(await prisma.journalAudit.count({ where: { ownerId, entite: "MembreCaisse", entiteId: membre.id, action: "CREATION" } })).toBe(1);
+  });
+});
+
+describe("cas rares", () => {
+  it("SMS non lu traité deux fois : un seul paiement", async () => {
+    const sms = await prisma.smsNonLu.create({ data: { ownerId, texteBrut: "Texte illisible" } });
+    const envoyer = () => saisirPaiement(sms.id, undefined, formulaire({ canal: "CASH", montant: "7 777", date: dateIso, heure: "10:00", personneId: "", reference: "", note: "", decision: "nouveau" }));
+    const resultats = await Promise.allSettled([envoyer(), envoyer()]);
+    expect(resultats.every((r) => r.status === "fulfilled" || String(r.reason).includes("REDIRECT"))).toBe(true);
+    expect(await prisma.paiement.count({ where: { ownerId, montant: 7_777 } })).toBe(1);
+  });
+
+  it("historique d'un compte envoyé deux fois en même temps : aucun doublon", async () => {
+    const compte = await prisma.caisse.create({ data: { ownerId, nom: "Compte double envoi", type: "COMPTE_GARDE", montantCotisation: 0 } });
+    const texte = "Date\tVersement\tRetrait\n01/01/2026\t1 000\t\n01/01/2026\t1 000\t\n02/01/2026\t\t500";
+    const envoyer = () => importerHistoriqueCompte(compte.id, undefined, formulaire({ texte, canal: "CASH", intention: "importer" }));
+    await Promise.all([envoyer(), envoyer()]);
+    expect(await prisma.mouvementCompte.count({ where: { caisseId: compte.id } })).toBe(3);
+  });
+
+  it("rattacher un SMS d'une somme à un autre versé : l'autre SMS redevient libre", async () => {
+    const verse = await reprise(6_000);
+    const autre = await reprise(4_000);
+    const reference = `T${Date.now()}ABCDEF`.slice(0, 17).toUpperCase();
+    const smsA = await prisma.paiement.create({ data: { ownerId, canal: "WAVE", source: "SMS_WAVE", montant: 4_000, statut: "IGNORE", dateReception: jour, reference, dateRepriseId: verse.id } });
+    const smsB = await prisma.paiement.create({ data: { ownerId, canal: "WAVE", source: "SMS_WAVE", montant: 2_000, statut: "IGNORE", dateReception: jour, dateRepriseId: verse.id } });
+    await prisma.paiement.update({ where: { id: verse.id }, data: { datation: "PAR_SMS", dateReception: jour } });
+
+    const sms = `Vous avez recu 4.000F\nDe Awa (770000000)\n${dateSms}\n${reference}`;
+    expect(await daterRepriseAvecSms(autre.id, undefined, formulaire({ texte: sms, rattacher: "1" }))).toBeUndefined();
+    expect((await prisma.paiement.findUniqueOrThrow({ where: { id: smsA.id } })).dateRepriseId).toBe(autre.id);
+    expect((await prisma.paiement.findUniqueOrThrow({ where: { id: smsB.id } })).dateRepriseId).toBeNull();
+    expect((await prisma.paiement.findUniqueOrThrow({ where: { id: verse.id } })).datation).toBe("NON_DATEE");
   });
 });

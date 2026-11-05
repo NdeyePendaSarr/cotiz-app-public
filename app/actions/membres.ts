@@ -53,11 +53,13 @@ async function inscrire(idCaisse: unknown, idPersonne: unknown) {
       if (existant.statut === StatutMembre.INACTIF) {
         await tx.membreCaisse.update({ where: { id: existant.id }, data: { statut: StatutMembre.ACTIF, ordrePassage: null } });
         await assurerEcheanceMembre(tx, existant.id, caisseId);
+        await journaliser(tx, { ownerId, entite: "MembreCaisse", entiteId: existant.id, action: "MODIFICATION", details: { statut: StatutMembre.ACTIF } });
       }
       return;
     }
     const ordrePassage = caisse.type === "TONTINE" ? await ordreSuivant(tx, caisseId) : null;
     const membre = await tx.membreCaisse.create({ data: { caisseId, personneId, ordrePassage }, select: { id: true } });
+    await journaliser(tx, { ownerId, entite: "MembreCaisse", entiteId: membre.id, action: "CREATION", details: { caisseId, personneId } });
     // Cycle ouvert : le nouveau membre doit cotiser tout de suite (cahier, phase 5).
     await assurerEcheanceMembre(tx, membre.id, caisseId);
   });
@@ -89,9 +91,9 @@ export async function changerStatutMembre(formData: FormData) {
     // Écriture refiltrée par ownerId (via la caisse), en plus de la lecture ci-dessus (audit).
     await tx.membreCaisse.updateMany({ where: { id: membreId, caisse: { ownerId } }, data: { statut, ordrePassage: null } });
     // Échéance du cycle ouvert : retirée si rien n'y est payé ; recréée à la réactivation.
-    if (statut === StatutMembre.INACTIF) await retirerEcheanceMembre(tx, membreId);
-    else await assurerEcheanceMembre(tx, membreId, membre.caisseId);
-    await journaliser(tx, { ownerId, entite: "MembreCaisse", entiteId: membreId, action: "MODIFICATION", details: { statut } });
+    const echeancesRetirees = statut === StatutMembre.INACTIF ? await retirerEcheanceMembre(tx, membreId) : 0;
+    if (statut === StatutMembre.ACTIF) await assurerEcheanceMembre(tx, membreId, membre.caisseId);
+    await journaliser(tx, { ownerId, entite: "MembreCaisse", entiteId: membreId, action: "MODIFICATION", details: { statut, echeancesRetirees } });
   });
   await annoncer(statut === StatutMembre.INACTIF ? "Membre retiré" : "Membre réactivé ✓");
   refresh();

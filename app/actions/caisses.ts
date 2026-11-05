@@ -55,8 +55,12 @@ export async function creerCaisse(_etat: EtatFormulaireCaisse, formData: FormDat
   }
   const caisse = await prisma.$transaction(async (tx) => {
     const creee = await tx.caisse.create({ data: { ownerId, ...versChampsCaisse(donnees) }, select: { id: true } });
+    await journaliser(tx, { ownerId, entite: "Caisse", entiteId: creee.id, action: "CREATION", details: { nom: donnees.nom, type: donnees.type } });
     // Le titulaire est le seul membre d'un compte gardé (sans cycle ni échéance).
-    if (titulaireId) await tx.membreCaisse.create({ data: { caisseId: creee.id, personneId: titulaireId } });
+    if (titulaireId) {
+      const titulaire = await tx.membreCaisse.create({ data: { caisseId: creee.id, personneId: titulaireId }, select: { id: true } });
+      await journaliser(tx, { ownerId, entite: "MembreCaisse", entiteId: titulaire.id, action: "CREATION", details: { caisseId: creee.id, personneId: titulaireId } });
+    }
     // Une collecte a un seul cycle, créé avec elle (début = aujourd'hui, échéance = date limite).
     // Aucun membre encore : les échéances arrivent avec chaque membre ajouté ou importé.
     // Mensualité : un seul cycle pour toute la durée, du 1er du premier mois au dernier jour du dernier.
@@ -96,14 +100,13 @@ export async function modifierCaisse(
     return { erreur: "Le type d'une caisse ne peut pas être changé après sa création.", valeurs };
   }
 
-  // Le nouveau montant ne vaut que pour les cycles futurs : les échéances existantes
-  // gardent leur montantDu (décision du cahier, phase 4).
+  // Tontine : le nouveau montant ne vaut que pour les cycles futurs, les échéances existantes
+  // gardent leur montantDu (décision du cahier, phase 4). Collecte et mensualité : un seul cycle,
+  // donc le même dû pour tout le monde, recalculé (décision du 05/11/2026 pour la collecte).
   const donnees = saisie.data;
   const refus = await prisma.$transaction(async (tx) => {
-    let detailsMensualite = {};
-    // Mensualité : premier mois, durée ou montant corrigés → dates du cycle et dû de chaque membre
-    // recalculés (une seule échéance par membre pour toute la durée ; ce qui est versé reste versé).
-    if (donnees.type === "MENSUALITE") {
+    let detailsRecalcul = {};
+    if (donnees.type === "MENSUALITE" || donnees.type === "COLLECTE") {
       // Verrou d'abord : aucune validation ne peut changer le versé entre le contrôle et le recalcul.
       await verrouillerEcheancesDeCaisse(tx, ownerId, idValide.data);
       const champs = versChampsCaisse(donnees);
@@ -112,8 +115,12 @@ export async function modifierCaisse(
       const cycles = await tx.cycle.findMany({ where: { caisseId: idValide.data, statut: "OUVERT" }, select: { id: true } });
 
       // Clôturée : ses échéances ne sont plus recalculées, ses paramètres ne bougent donc plus.
-      const parametresChanges = avant.montantCotisation !== champs.montantCotisation || avant.nombreMois !== champs.nombreMois || avant.moisDebut?.getTime() !== donnees.moisDebut.getTime();
-      if (cycles.length === 0 && parametresChanges) return "Cette mensualité est clôturée : son montant, sa durée et son premier mois ne peuvent plus changer.";
+      if (cycles.length === 0) {
+        if (donnees.type === "COLLECTE" && avant.montantCotisation !== champs.montantCotisation) return "Cette collecte est terminée : son montant ne peut plus changer.";
+        if (donnees.type === "MENSUALITE" && (avant.montantCotisation !== champs.montantCotisation || avant.nombreMois !== champs.nombreMois || avant.moisDebut?.getTime() !== donnees.moisDebut.getTime())) {
+          return "Cette mensualité est clôturée : son montant, sa durée et son premier mois ne peuvent plus changer.";
+        }
+      }
 
       // Versé au-delà du nouveau dû : refus (cet argent déjà affecté n'apparaîtrait plus nulle part).
       const echeances = await tx.echeance.findMany({
@@ -129,11 +136,13 @@ export async function modifierCaisse(
         return `Impossible : le nouveau dû serait de ${formaterFCFA(nouveauDu)}, mais ont déjà versé plus : ${noms}${autres}. Corrige d'abord leurs rapprochements.`;
       }
 
-      await tx.cycle.updateMany({ where: { id: { in: cycles.map((c) => c.id) } }, data: { dateDebut: donnees.moisDebut, dateEcheance: champs.dateLimite! } });
+      if (donnees.type === "MENSUALITE") {
+        await tx.cycle.updateMany({ where: { id: { in: cycles.map((c) => c.id) } }, data: { dateDebut: donnees.moisDebut, dateEcheance: champs.dateLimite! } });
+      }
       await tx.echeance.updateMany({ where: { cycleId: { in: cycles.map((c) => c.id) } }, data: { montantDu: nouveauDu } });
-      detailsMensualite = {
-        avant: { montantCotisation: avant.montantCotisation, nombreMois: avant.nombreMois, moisDebut: avant.moisDebut?.toISOString().slice(0, 10) ?? null, montantDu: montantDuParMembre({ type: "MENSUALITE", ...avant }) },
-        apres: { nombreMois: champs.nombreMois, moisDebut: donnees.moisDebut.toISOString().slice(0, 10), montantDu: nouveauDu },
+      detailsRecalcul = {
+        avant: { montantCotisation: avant.montantCotisation, nombreMois: avant.nombreMois, moisDebut: avant.moisDebut?.toISOString().slice(0, 10) ?? null, montantDu: montantDuParMembre({ type: donnees.type, ...avant }) },
+        apres: { nombreMois: champs.nombreMois, moisDebut: champs.moisDebut?.toISOString().slice(0, 10) ?? null, montantDu: nouveauDu },
       };
     }
     await tx.caisse.updateMany({ where: { id: idValide.data, ownerId }, data: versChampsCaisse(donnees) });
@@ -142,7 +151,7 @@ export async function modifierCaisse(
       entite: "Caisse",
       entiteId: idValide.data,
       action: "MODIFICATION",
-      details: { nom: donnees.nom, montantCotisation: versChampsCaisse(donnees).montantCotisation, ...detailsMensualite },
+      details: { nom: donnees.nom, montantCotisation: versChampsCaisse(donnees).montantCotisation, ...detailsRecalcul },
     });
     // Collecte : la date limite est l'échéance de son cycle ouvert.
     if (donnees.type === "COLLECTE") {
@@ -167,7 +176,11 @@ export async function changerStatutCaisse(formData: FormData) {
   if (!saisie.success) return;
 
   // updateMany + ownerId : met à jour 0 ligne si la caisse n'est pas à elle.
-  const { count } = await prisma.caisse.updateMany({ where: { id: saisie.data.id, ownerId }, data: { statut: saisie.data.statut } });
+  const count = await prisma.$transaction(async (tx) => {
+    const resultat = await tx.caisse.updateMany({ where: { id: saisie.data.id, ownerId }, data: { statut: saisie.data.statut } });
+    if (resultat.count) await journaliser(tx, { ownerId, entite: "Caisse", entiteId: saisie.data.id, action: "MODIFICATION", details: { statut: saisie.data.statut } });
+    return resultat.count;
+  });
   if (count) await annoncer(saisie.data.statut === "ARCHIVEE" ? "Caisse archivée" : "Caisse réactivée ✓");
   refresh();
 }

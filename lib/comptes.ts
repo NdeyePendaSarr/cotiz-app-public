@@ -146,3 +146,18 @@ export function analyserHistoriqueCompte(texte: string): AnalyseCompte {
 
 /** Clé d'un mouvement pour repérer un doublon déjà enregistré (même jour, même sens, même montant). */
 export const cleMouvement = (m: { date: Date; sens: Sens; montant: number }) => `${m.date.toISOString().slice(0, 10)}|${m.sens}|${m.montant}`;
+
+/**
+ * Lignes d'un historique sans mouvement enregistré équivalent : chaque mouvement existant « consomme »
+ * une ligne identique du tableau, donc deux versements identiques le même jour restent possibles.
+ */
+export function lignesNouvelles<T extends { date: Date; sens: Sens; montant: number }>(lignes: T[], existants: { date: Date; sens: Sens; montant: number }[]) {
+  const restants = new Map<string, number>();
+  for (const m of existants) restants.set(cleMouvement(m), (restants.get(cleMouvement(m)) ?? 0) + 1);
+  return lignes.filter((l) => {
+    const cle = cleMouvement(l);
+    const n = restants.get(cle) ?? 0;
+    if (n > 0) restants.set(cle, n - 1);
+    return n === 0;
+  });
+}

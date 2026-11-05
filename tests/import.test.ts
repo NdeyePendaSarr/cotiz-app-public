@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { analyserImport, comparerAvecFiche, lignesACompleter, resumer, type PersonneExistante } from "@/lib/import/analyse";
 import { detecterColonnes, extraireLignes, lireCanal, lireTableau, lireVerse } from "@/lib/import/tableau";
-import { analyserHistoriqueCompte } from "@/lib/comptes";
+import { analyserHistoriqueCompte, lignesNouvelles } from "@/lib/comptes";
 import { schemaMontant } from "@/lib/validation/montant";
 import { schemaPaiementManuel } from "@/lib/validation/paiement";
 
@@ -194,6 +194,29 @@ describe("lireVerse", () => {
   it.each(["deux mille", "2,5", "oui", "1.5", "12.50", "5000.000", "99999999"])("« %s » est illisible ou trop élevé", (texte) => expect(lireVerse(texte)).toBeNull());
 });
 
+describe("réimport : versé déjà connu", () => {
+  const ligneLue = { numero: 1, nom: "Awa Diop", verseSaisi: "1 000" } as Parameters<typeof analyserImport>[0][number];
+  const existante = [{ id: "p1", nomComplet: "Awa Diop", aliasWave: [], numeros: [], cellule: null, membre: { statut: "ACTIF" as const } }] as Parameters<typeof analyserImport>[1];
+  const caisse = { type: "MENSUALITE" as const, ordresPris: [], cycleOuvert: true, dejaPayees: ["p1"], dejaVerse: { p1: 500 } };
+
+  it("[F] la liste annonce plus que Cotiz : écart signalé, aucun paiement créé", () => {
+    const [ligne] = analyserImport([ligneLue], existante, caisse);
+    expect(ligne.verse).toBeNull();
+    expect(ligne.messages.join(" ").replace(/\s/g, " ")).toContain("saisis les 500 FCFA d'écart");
+  });
+
+  it("[F] même montant : rien à signaler de plus", () => {
+    const [ligne] = analyserImport([ligneLue], existante, { ...caisse, dejaVerse: { p1: 1_000 } });
+    expect(ligne.messages.join(" ")).not.toContain("écart");
+  });
+
+  it("[F] versé repris annulé puis réimporté : jamais recréé", () => {
+    const [ligne] = analyserImport([ligneLue], existante, { type: "MENSUALITE", ordresPris: [], cycleOuvert: true, reprisesEnAttente: { p1: [1_000] } });
+    expect(ligne.verse).toBeNull();
+    expect(ligne.messages.join(" ")).toContain("attend au rapprochement");
+  });
+});
+
 describe("schemaMontant", () => {
   const schema = schemaMontant("Indique le montant.");
 
@@ -220,6 +243,15 @@ describe("schemaPaiementManuel : référence", () => {
   it("[F] les autres canaux ne changent pas", () => {
     expect(saisie("ORANGE_MONEY", "PP260415.0932.C48217")).toBe("PP260415.0932.C48217");
     expect(saisie("CASH", "ABC")).toBeNull();
+  });
+});
+
+describe("lignesNouvelles", () => {
+  const ligne = { date: new Date("2026-10-01"), sens: "VERSEMENT" as const, montant: 1_000 };
+
+  it("[F] chaque mouvement enregistré écarte une seule ligne identique", () => {
+    expect(lignesNouvelles([ligne, ligne, { ...ligne, montant: 2_000 }], [ligne])).toEqual([ligne, { ...ligne, montant: 2_000 }]);
+    expect(lignesNouvelles([ligne], [ligne, ligne])).toEqual([]);
   });
 });
 

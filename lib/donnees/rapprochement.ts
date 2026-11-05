@@ -29,24 +29,24 @@ export async function personnesPourMatching(ownerId: string) {
 type Client = Prisma.TransactionClient | typeof prisma;
 
 /**
- * Échéances pas entièrement payées, arriérés des cycles clôturés compris (cahier, phase 7),
- * regroupées par personne. Avec un client de transaction, sert aussi à revérifier avant d'écrire.
+ * Échéances pas entièrement payées des caisses actives (une caisse archivée se réactive d'abord),
+ * arriérés des cycles clôturés compris (cahier, phase 7), regroupées par personne. Avec un client de transaction, sert aussi à revérifier avant d'écrire.
  */
 export async function echeancesDues(client: Client, ownerId: string, personneId?: string) {
   // Une seule requête (audit, lot 3) : seules les échéances encore dues remontent, la somme déjà
   // affectée est calculée par la base. Avant, toutes les échéances (payées comprises) étaient lues
   // puis filtrées en mémoire, et la liste grossissait à chaque cycle. Requête paramétrée.
   const lignes = await client.$queryRaw<
-    { id: string; montant_du: number; deja_alloue: number; personne_id: string; numero: number; date_echeance: Date; caisse_nom: string }[]
+    { id: string; montant_du: number; deja_alloue: number; personne_id: string; numero: number; date_echeance: Date; caisse_nom: string; membre_retire: boolean }[]
   >`
-    SELECT e.id, e.montant_du, COALESCE(SUM(a.montant), 0)::int AS deja_alloue, m.personne_id, cy.numero, cy.date_echeance, c.nom AS caisse_nom
+    SELECT e.id, e.montant_du, COALESCE(SUM(a.montant), 0)::int AS deja_alloue, m.personne_id, cy.numero, cy.date_echeance, c.nom AS caisse_nom, m.statut = 'INACTIF' AS membre_retire
     FROM echeances e
     JOIN membres_caisse m ON m.id = e.membre_caisse_id
     JOIN caisses c ON c.id = m.caisse_id
     JOIN cycles cy ON cy.id = e.cycle_id
     LEFT JOIN allocations a ON a.echeance_id = e.id
-    WHERE c.owner_id = ${ownerId}::uuid ${personneId ? Prisma.sql`AND m.personne_id = ${personneId}::uuid` : Prisma.empty}
-    GROUP BY e.id, e.montant_du, m.personne_id, cy.numero, cy.date_echeance, c.nom
+    WHERE c.owner_id = ${ownerId}::uuid AND c.statut = 'ACTIVE' ${personneId ? Prisma.sql`AND m.personne_id = ${personneId}::uuid` : Prisma.empty}
+    GROUP BY e.id, e.montant_du, m.personne_id, m.statut, cy.numero, cy.date_echeance, c.nom
     HAVING COALESCE(SUM(a.montant), 0) < e.montant_du`;
 
   const parPersonne: Record<string, EcheanceDue[]> = {};
@@ -58,6 +58,7 @@ export async function echeancesDues(client: Client, ownerId: string, personneId?
       dateEcheance: e.date_echeance.toISOString().slice(0, 10),
       montantDu: e.montant_du,
       dejaAlloue: e.deja_alloue,
+      membreRetire: e.membre_retire,
     });
   }
   return parPersonne;

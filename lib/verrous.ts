@@ -51,6 +51,11 @@ export async function verrouillerEcheancesDePersonne(tx: Tx, ownerId: string, pe
     FOR UPDATE OF e`;
 }
 
+/** Verrouille une caisse de l'utilisatrice (import de l'historique d'un compte : un seul à la fois). */
+export async function verrouillerCaisse(tx: Tx, ownerId: string, caisseId: string) {
+  await tx.$queryRaw`SELECT id FROM caisses WHERE id = ${caisseId}::uuid AND owner_id = ${ownerId}::uuid FOR UPDATE`;
+}
+
 /** Verrouille le paiement d'origine d'une bonne volonté, s'il y en a un, avant de relire son excédent. */
 export async function verrouillerPaiementDuDon(tx: Tx, ownerId: string, donId: string) {
   await tx.$queryRaw`

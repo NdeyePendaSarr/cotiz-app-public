@@ -632,7 +632,10 @@ function CopierRecap({ texte }: { texte: string }) {
 export function Cloture({ suivi, contexte }: { suivi: Suivi; contexte: ContexteSuivi }) {
   const [etat, envoyer, enCours] = useActionState(cloturerCycle.bind(null, contexte.caisseId), undefined);
   const [confirmation, setConfirmation] = useState(false);
-  const impayes = [...suivi.actifs, ...suivi.retires].filter((l) => !l.aJour);
+  // Mensualité : on la termine, donc tout ce qui n'est pas versé sur la durée compte, pas seulement le dû à ce jour.
+  const surLaDuree = contexte.type === "MENSUALITE";
+  const impayes = suivi.actifs.filter((l) => (surLaDuree ? l.paye < l.montantDu : !l.aJour));
+  const resteImpaye = impayes.reduce((s, l) => s + (surLaDuree ? l.montantDu - l.paye : l.reste), 0);
 
   if (!confirmation) {
     return (
@@ -646,7 +649,9 @@ export function Cloture({ suivi, contexte }: { suivi: Suivi; contexte: ContexteS
       <p className="font-semibold">{contexte.type === "COLLECTE" ? "Clôturer la collecte ?" : contexte.type === "MENSUALITE" ? "Clôturer la mensualité ?" : `Clôturer le cycle n° ${contexte.cycleNumero} ?`}</p>
       {impayes.length > 0 ? (
         <p className="text-sm">
-          {impayes.length} membre{impayes.length > 1 ? "s ne sont" : " n'est"} pas à jour ({formaterFCFA(suivi.totaux.reste)} restant).
+          {surLaDuree
+            ? `${impayes.length} membre${impayes.length > 1 ? "s n'ont" : " n'a"} pas tout versé (${formaterFCFA(resteImpaye)} restant sur toute la durée).`
+            : `${impayes.length} membre${impayes.length > 1 ? "s ne sont" : " n'est"} pas à jour (${formaterFCFA(resteImpaye)} restant).`}
           {contexte.type === "TONTINE" && " Ces montants resteront dus comme arriérés."}
         </p>
       ) : (

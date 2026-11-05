@@ -195,7 +195,7 @@ Le schéma sépare ce qui est dû (`Echeance`) de ce qui est reçu (`Paiement`),
 | `NumeroPersonne` (`numeros_personne`) | Numéros d'une personne (9 chiffres) | Un numéro peut appartenir à 2 personnes |
 | `MembreCaisse` (`membres_caisse`) | Inscription d'une personne dans une caisse | `ordrePassage` unique par caisse, `statut` ACTIF / INACTIF |
 | `Cycle` (`cycles`) | Un tour de tontine, ou l'unique cycle d'une collecte | Un seul cycle `OUVERT` par caisse (index unique partiel) ; `beneficiaireId` réservé à la v1 |
-| `Echeance` (`echeances`) | Ce qu'un membre doit pour un cycle | `montantDu` figé à la création |
+| `Echeance` (`echeances`) | Ce qu'un membre doit pour un cycle | `montantDu` figé à la création pour une tontine ; recalculé pour une collecte ou une mensualité ouverte si le montant change |
 | `Paiement` (`paiements`) | Argent reçu | Voir ci-dessous |
 | `Allocation` (`allocations`) | Part d'un paiement affectée à une échéance | Clé (`paiementId`, `echeanceId`) |
 | `SmsNonLu` (`sms_non_lus`) | SMS que le parser n'a pas su lire | Texte sans solde, `A_TRAITER` / `TRAITE` |
@@ -554,3 +554,16 @@ Tu travailles avec une développeuse qui doit pouvoir expliquer chaque choix en 
   - **Base** : `depenses`, `dons` et `mouvements_compte → caisses` en clés différées.
   - **Tests** : RLS contrôlée sur toutes les tables de la base ; un `journaliser` exigé pour chaque entité modifiée.
   - **Pages** : page 404 en français ; dans une page privée, la navigation reste.
+- **Décisions du 05/11/2026 (règles métier, audit lot 4)** :
+  1. **Caisse archivée** : plus proposée au rapprochement ; il faut la réactiver d'abord.
+  2. **Membre retiré qui doit encore** : reste proposé au rapprochement, mais jamais « sûr ».
+  3. **Reste d'un membre retiré** : ne compte plus (attendu, « pas à jour », relance, récap). Seul ce qu'il a versé compte. Ses arriérés des cycles clôturés restent affichés.
+  4. **Montant d'une collecte changé** : vaut pour tout le monde sur le cycle ouvert, refusé si quelqu'un a déjà versé plus, figé une fois la collecte terminée. Les tontines ne changent pas (cycles futurs seulement).
+  5. **Réimport avec un versé plus élevé que ce que Cotiz connaît** : signalé dans l'aperçu, aucun paiement créé.
+  6. **« Versé dans l'année »** : net des excédents remboursés.
+  7. **Mensualité avant son premier mois, rien versé** : pastille « Pas commencée » (compté comme à jour).
+  - Un paiement de mensualité reste à valider à la main : il n'est jamais « sûr », car il couvre souvent plusieurs mois.
+- **Audit du 05/11/2026, lot 4 (corrections)** :
+  - **Calculs** : arriérés comptés sur toute la caisse ; fiche personne et page de caisse suivent la même règle (`situationEcheance`) ; la clôture d'une mensualité annonce le reste sur toute la durée.
+  - **Journal** : création de caisse, archivage, inscription et réactivation d'un membre, y compris à l'import. Le test statique surveille aussi `Caisse` et `MembreCaisse` (l'ordre de passage reste hors journal).
+  - **Cas rares** : SMS non lu traité deux fois, historique d'un compte envoyé deux fois, versé repris annulé puis réimporté, SMS d'une somme rattaché à un autre versé.

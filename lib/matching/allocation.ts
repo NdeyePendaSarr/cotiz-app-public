@@ -11,6 +11,8 @@ export type EcheanceDue = {
   dateEcheance: string; // AAAA-MM-JJ
   montantDu: number;
   dejaAlloue: number;
+  /** Échéance d'un membre retiré : il peut encore payer, mais jamais sans décision (pas « sûr »). */
+  membreRetire?: boolean;
 };
 
 export type Ligne = { echeanceId: string; montant: number };

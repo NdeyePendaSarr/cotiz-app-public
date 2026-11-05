@@ -99,6 +99,7 @@ export async function creerPersonne(
     if (caisse) {
       const ordrePassage = caisse.type === "TONTINE" ? await ordreSuivant(tx, caisse.id) : null;
       const membre = await tx.membreCaisse.create({ data: { caisseId: caisse.id, personneId: creee.id, ordrePassage }, select: { id: true } });
+      await journaliser(tx, { ownerId, entite: "MembreCaisse", entiteId: membre.id, action: "CREATION", details: { caisseId: caisse.id, personneId: creee.id } });
       await assurerEcheanceMembre(tx, membre.id, caisse.id);
     }
     return creee;

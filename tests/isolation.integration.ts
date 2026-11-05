@@ -289,7 +289,7 @@ describe("isolation entre deux trésorières", () => {
     expect(apres.caisses.find((c) => c.id === a.collecte.id)?.statut).toBe("ARCHIVEE");
     expect(apres.depenses.map((d) => [d.motif, d.montant, d.beneficiaire])).toContainEqual(["Transport", 2_000, "Pape Fall"]);
     expect(apres.dons.map((d) => [d.donateur, d.montant])).toContainEqual(["ABK", 3_000]);
-    expect(apres.journal).toBe(avantA.journal + 5); // remboursement, ignoré, SMS traité, dépense, bonne volonté
+    expect(apres.journal).toBe(avantA.journal + 6); // remboursement, ignoré, SMS traité, dépense, bonne volonté
   });
 
   it("contrôle : la validation groupée rapproche un paiement sûr de A, et seulement lui", async () => {

@@ -130,7 +130,10 @@ async function daterParReference(
           where: { id: autre.id },
           data: { datation: "NON_DATEE", dateReception: autre.rapprocheLe ?? new Date(), ...(estReprise && { reference: null }) },
         });
-        await journaliser(tx, { ownerId, entite: "Paiement", entiteId: autre.id, action: "MODIFICATION", details: { dateRetiree: true, paiementRattacheA: reprise.id } });
+        // Daté par une somme de SMS : les autres SMS de cette somme redeviennent libres.
+        const liberes = await tx.paiement.findMany({ where: { ownerId, dateRepriseId: autre.id, id: { not: deja.id } }, select: { id: true } });
+        await tx.paiement.updateMany({ where: { id: { in: liberes.map((s) => s.id) }, ownerId }, data: { dateRepriseId: null } });
+        await journaliser(tx, { ownerId, entite: "Paiement", entiteId: autre.id, action: "MODIFICATION", details: { dateRetiree: true, paiementRattacheA: reprise.id, smsLiberes: liberes.map((s) => s.id) } });
         if (estReprise) garderReference = true;
         else {
           await tx.paiement.update({ where: { id: deja.id }, data: { dateRepriseId: reprise.id } });

@@ -8,7 +8,8 @@ import type { Identification } from "@/lib/matching/personne";
  * Répartition à valider sans ouvrir le paiement, ou null s'il faut le vérifier. Sûr =
  * 1. une seule personne, trouvée par son numéro ou déjà identifiée (confiance haute) ;
  * 2. une répartition qui tombe juste (une échéance ou une combinaison exacte), sans excédent
- *    ni autre répartition possible. Un paiement partiel n'est jamais sûr : il faut choisir où il va.
+ *    ni autre répartition possible. Un paiement partiel n'est jamais sûr : il faut choisir où il va ;
+ * 3. aucune échéance d'un membre retiré : c'est à la trésorière de décider.
  */
 export function repartitionSure(identification: Identification, montant: number, echeancesDues: EcheanceDue[]): Repartition | null {
   const { proposee, candidats } = identification;
@@ -16,6 +17,8 @@ export function repartitionSure(identification: Identification, montant: number,
   const proposition = proposerRepartition(montant, echeancesDues);
   const juste = proposition.type === "exacte" || proposition.type === "combinaison";
   if (!juste || proposition.principale.excedent !== 0 || proposition.alternatives.length > 0) return null;
+  const retirees = new Set(echeancesDues.filter((e) => e.membreRetire).map((e) => e.id));
+  if (proposition.principale.lignes.some((l) => retirees.has(l.echeanceId))) return null;
   return proposition.principale;
 }
 

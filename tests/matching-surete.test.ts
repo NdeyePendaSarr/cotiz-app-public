@@ -52,3 +52,13 @@ describe("repartitionSure (validation groupée)", () => {
     expect(repartitionSure(parNumero, 10_000, deux)).toBeNull();
   });
 });
+
+describe("repartitionSure : membre retiré", () => {
+  const due = { id: "e1", caisseNom: "Tontine", cycleNumero: 1, dateEcheance: "2026-10-01", montantDu: 5_000, dejaAlloue: 0 };
+  const identification = { proposee: "p1", candidats: [{ id: "p1", confiance: "haute" }] } as Parameters<typeof repartitionSure>[0];
+
+  it("sa répartition juste n'est jamais « sûre » : la trésorière décide", () => {
+    expect(repartitionSure(identification, 5_000, [due])).not.toBeNull();
+    expect(repartitionSure(identification, 5_000, [{ ...due, membreRetire: true }])).toBeNull();
+  });
+});

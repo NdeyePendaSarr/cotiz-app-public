@@ -51,7 +51,7 @@ async function Accueil() {
   const recu = resumes.reduce((s, c) => s + c.r.recu, 0);
   const attendu = resumes.reduce((s, c) => s + c.r.attendu, 0);
   const pourcentage = attendu > 0 ? Math.round((recu / attendu) * 100) : 0;
-  const echeances = cycles.reduce((s, c) => s + c.echeances.length, 0);
+  const echeances = resumes.reduce((s, c) => s + c.r.membres, 0);
   const aJour = echeances - resumes.reduce((s, c) => s + c.r.pasAJour, 0);
   // Argent arrivé (date de réception), rapproché ou non : peut différer du « reçu » réparti ci-dessus.
   const parJour = recuParJour(recus, jour, JOURS_GRAPHIQUE);
