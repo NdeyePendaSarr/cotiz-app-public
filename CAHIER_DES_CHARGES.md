@@ -567,3 +567,4 @@ Tu travailles avec une développeuse qui doit pouvoir expliquer chaque choix en 
   - **Calculs** : arriérés comptés sur toute la caisse ; fiche personne et page de caisse suivent la même règle (`situationEcheance`) ; la clôture d'une mensualité annonce le reste sur toute la durée.
   - **Journal** : création de caisse, archivage, inscription et réactivation d'un membre, y compris à l'import. Le test statique surveille aussi `Caisse` et `MembreCaisse` (l'ordre de passage reste hors journal).
   - **Cas rares** : SMS non lu traité deux fois, historique d'un compte envoyé deux fois, versé repris annulé puis réimporté, SMS d'une somme rattaché à un autre versé.
+  - **Finitions** : boutons d'envoi avec état d'attente (`BoutonEnvoi`), textes de 13 px minimum (barre du bas à largeur variable pour tenir à 320 px, grilles agrandies), menu de l'import à 16 px pour éviter le zoom de l'iPhone, code mort retiré.

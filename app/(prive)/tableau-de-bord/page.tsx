@@ -1,3 +1,4 @@
+import { BoutonEnvoi } from "@/components/cotiz/bouton-envoi";
 import { ArrowDownRight, ArrowLeftRight, ArrowUpRight, CalendarCheck, ChevronRight, HandCoins, MessageSquareWarning } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -10,7 +11,6 @@ import { SqueletteListe } from "@/components/cotiz/squelette";
 import { exigerUtilisatrice, profilUtilisatrice } from "@/lib/auth";
 import { aujourdhui } from "@/lib/cycles/dates";
 import { daterRepriseParSms } from "@/app/actions/datation";
-import { Button } from "@/components/ui/button";
 import { compterSmsNonLus } from "@/lib/donnees/paiements";
 import { paiementsRecus } from "@/lib/donnees/statistiques";
 import { compterARapprocher, datationsPossibles } from "@/lib/donnees/rapprochement";
@@ -324,10 +324,10 @@ async function BoutonDatation({ ownerId }: { ownerId: string }) {
   if (datations.length === 0) return null;
   return (
     <form action={daterRepriseParSms} className="pt-2">
-      <Button type="submit" variant="outline" className="h-auto min-h-11 w-full text-sm whitespace-normal">
+      <BoutonEnvoi variant="outline" className="h-auto min-h-11 w-full text-sm whitespace-normal">
         <CalendarCheck aria-hidden />
         Dater {datations.length} versé{datations.length > 1 ? "s" : ""} avec {datations.length > 1 ? "leurs" : "son"} SMS ignoré{datations.length > 1 ? "s" : ""}
-      </Button>
+      </BoutonEnvoi>
     </form>
   );
 }

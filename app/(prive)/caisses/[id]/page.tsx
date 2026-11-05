@@ -1,3 +1,4 @@
+import { BoutonEnvoi } from "@/components/cotiz/bouton-envoi";
 import { Plus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -12,7 +13,7 @@ import { CasesChiffres } from "@/components/cotiz/cases-chiffres";
 import { Anneau, BarresHorizontales, Cascade, GrilleHistorique, GrilleMois, JaugeRythme } from "@/components/cotiz/graphiques";
 import { TABLEAU } from "@/components/cotiz/styles";
 import { SqueletteListe } from "@/components/cotiz/squelette";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { exigerUtilisatrice } from "@/lib/auth";
 import { ajouterJours, aujourdhui, prochaineEcheance } from "@/lib/cycles/dates";
 import { obtenirCaisse } from "@/lib/donnees/caisses";
@@ -530,9 +531,9 @@ async function DetailCaisse({
                 <form action={changerStatutCaisse}>
                   <input type="hidden" name="id" value={caisse.id} />
                   <input type="hidden" name="statut" value={archivee ? "ACTIVE" : "ARCHIVEE"} />
-                  <Button type="submit" variant="outline" className="w-full text-base">
+                  <BoutonEnvoi variant="outline" className="w-full text-base">
                     {archivee ? "Réactiver" : "Archiver"}
-                  </Button>
+                  </BoutonEnvoi>
                 </form>
               </div>
             </Bloc>
@@ -568,9 +569,9 @@ function PremierCycle({ caisse, nbCycles }: { caisse: Caisse; nbCycles: number }
       <form action={creerCycleCollecte} className="flex flex-col gap-2 rounded-2xl bg-card p-4 ring-1 ring-border">
         <input type="hidden" name="caisseId" value={caisse.id} />
         <p className="text-sm text-muted-foreground">Cette collecte n&apos;a pas encore de cycle.</p>
-        <Button type="submit" className="text-base">
+        <BoutonEnvoi className="text-base">
           Créer le cycle de la collecte
-        </Button>
+        </BoutonEnvoi>
       </form>
     );
   }
@@ -657,9 +658,9 @@ function LigneMembre({ membre: m, suggestionOrdre }: { membre: Membre; suggestio
         <form action={changerStatutMembre}>
           <input type="hidden" name="membreId" value={m.id} />
           <input type="hidden" name="statut" value={actif ? "INACTIF" : "ACTIF"} />
-          <Button type="submit" variant="outline" className="h-11">
+          <BoutonEnvoi variant="outline" className="h-11">
             {actif ? "Retirer" : "Réactiver"}
-          </Button>
+          </BoutonEnvoi>
         </form>
       </div>
       {suggestionOrdre !== undefined && (

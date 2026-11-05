@@ -32,8 +32,6 @@ export const schemaPaiementManuel = z
     reference: canal === Canal.CASH ? null : canal === Canal.WAVE ? normaliserReferenceWave(reference ?? "") || null : reference,
   }));
 
-export type PaiementManuel = z.infer<typeof schemaPaiementManuel>;
-
 /** Une date de réception dans le futur est une erreur de saisie (marge d'une minute). */
 export function estDansLeFutur(date: Date, maintenant = new Date()) {
   return date.getTime() > maintenant.getTime() + 60_000;

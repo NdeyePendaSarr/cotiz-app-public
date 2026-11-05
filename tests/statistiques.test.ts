@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { moyenneParJour, recuParCanal, recuParJour, rythmeCollectes, tendancesSemaine, totalReprises, type PaiementRecu } from "@/lib/statistiques";
+import { recuParCanal, recuParJour, rythmeCollectes, tendancesSemaine, totalReprises, type PaiementRecu } from "@/lib/statistiques";
 
 const jour = new Date("2026-10-21T00:00:00Z");
 const p = (iso: string, montant: number, canal: PaiementRecu["canal"] = "WAVE"): PaiementRecu => ({ dateReception: new Date(iso), montant, canal });
@@ -32,14 +32,6 @@ describe("recuParCanal", () => {
       { canal: "ORANGE_MONEY", montant: 0 },
       { canal: "CASH", montant: 3_000 },
     ]);
-  });
-});
-
-describe("moyenneParJour", () => {
-  it("divise par le nombre de jours de la période, jours vides compris", () => {
-    const jours = recuParJour([p("2026-10-21T10:00:00Z", 14_000), p("2026-10-20T10:00:00Z", 7)], jour);
-    expect(moyenneParJour(jours)).toBe(1_001);
-    expect(moyenneParJour([])).toBe(0);
   });
 });
 

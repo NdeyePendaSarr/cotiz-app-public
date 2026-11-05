@@ -14,7 +14,6 @@ export const schemaConnexion = z.object({
     .max(72, { error: "Mot de passe trop long." }),
 });
 
-export type DonneesConnexion = z.infer<typeof schemaConnexion>;
 
 // Nom par défaut d'une utilisatrice créée automatiquement : la partie avant le @.
 export function nomDepuisEmail(email: string) {

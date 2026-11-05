@@ -1,9 +1,9 @@
+import { BoutonEnvoi } from "@/components/cotiz/bouton-envoi";
 import type { Metadata } from "next";
 import { EnTete } from "@/components/cotiz/en-tete";
 import { Suspense } from "react";
 import { annulerRapprochement, remettreARapprocher } from "@/app/actions/rapprochement";
 import { SqueletteListe } from "@/components/cotiz/squelette";
-import { Button } from "@/components/ui/button";
 import { exigerUtilisatrice } from "@/lib/auth";
 import { derniersRapproches, echeancesDues, paiementsARapprocher, paiementsIgnores, personnesPourMatching } from "@/lib/donnees/rapprochement";
 import { payeesParImport } from "@/lib/donnees/suivi";
@@ -91,9 +91,9 @@ async function Contenu() {
                     {annulable ? (
                       <form action={annulerRapprochement}>
                         <input type="hidden" name="paiementId" value={p.id} />
-                        <Button type="submit" variant="outline" className="mt-1 h-11 w-full text-base">
+                        <BoutonEnvoi variant="outline" className="mt-1 h-11 w-full text-base">
                           Annuler le rapprochement
-                        </Button>
+                        </BoutonEnvoi>
                       </form>
                     ) : (
                       <span className="text-xs text-muted-foreground">
@@ -120,9 +120,9 @@ async function Contenu() {
                   ) : (
                     <form action={remettreARapprocher}>
                       <input type="hidden" name="paiementId" value={p.id} />
-                      <Button type="submit" variant="outline" className="mt-1 h-11 w-full text-base">
+                      <BoutonEnvoi variant="outline" className="mt-1 h-11 w-full text-base">
                         Remettre à rapprocher
-                      </Button>
+                      </BoutonEnvoi>
                     </form>
                   )}
                 </CartePaiement>

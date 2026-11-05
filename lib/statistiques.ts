@@ -48,11 +48,6 @@ export function recuParCanal(paiements: PaiementRecu[]): { canal: Canal; montant
   return ORDRE_CANAUX.map((canal) => ({ canal, montant: paiements.reduce((s, p) => (p.canal === canal ? s + p.montant : s), 0) }));
 }
 
-/** Moyenne par jour sur la période (jours sans paiement compris), arrondie au franc. */
-export function moyenneParJour(jours: JourRecu[]) {
-  return jours.length === 0 ? 0 : Math.round(jours.reduce((s, j) => s + j.montant, 0) / jours.length);
-}
-
 // ─── Tendances et rythme (retouches du 03/11/2026) ───────────────────────────────
 
 export type Tendance = { actuelle: number; precedente: number; ecart: number };

@@ -56,7 +56,9 @@ async function ListePersonnes({ searchParams }: { searchParams: Promise<Record<s
       </form>
 
       <p className="text-sm text-muted-foreground">
-        {recherche ? `${personnes.length} résultat(s) sur ${toutes.length} personnes` : `${toutes.length} personnes`}
+        {recherche
+          ? `${personnes.length} résultat${personnes.length > 1 ? "s" : ""} sur ${toutes.length} personne${toutes.length > 1 ? "s" : ""}`
+          : `${toutes.length} personne${toutes.length > 1 ? "s" : ""}`}
       </p>
 
       {personnes.length > 0 && (

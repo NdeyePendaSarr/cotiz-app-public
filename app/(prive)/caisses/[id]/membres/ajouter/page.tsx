@@ -1,3 +1,4 @@
+import { BoutonEnvoi } from "@/components/cotiz/bouton-envoi";
 import type { Metadata } from "next";
 import { EnTete } from "@/components/cotiz/en-tete";
 import Link from "next/link";
@@ -5,7 +6,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { ajouterMembre } from "@/app/actions/membres";
 import { SqueletteFormulaire } from "@/components/cotiz/squelette";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { exigerUtilisatrice } from "@/lib/auth";
 import { obtenirCaisse } from "@/lib/donnees/caisses";
@@ -88,9 +89,9 @@ async function Ajout({
                   <form action={ajouterMembre}>
                     <input type="hidden" name="caisseId" value={caisse.id} />
                     <input type="hidden" name="personneId" value={p.id} />
-                    <Button type="submit" className="h-11">
+                    <BoutonEnvoi className="h-11">
                       {statut === "INACTIF" ? "Réactiver" : "Inscrire"}
-                    </Button>
+                    </BoutonEnvoi>
                   </form>
                 )}
               </li>

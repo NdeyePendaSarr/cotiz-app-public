@@ -1,3 +1,4 @@
+import { BoutonEnvoi } from "@/components/cotiz/bouton-envoi";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { seDeconnecter } from "@/app/actions/auth";
@@ -5,7 +6,6 @@ import { EnTete } from "@/components/cotiz/en-tete";
 import { Bloc, Section } from "@/components/cotiz/section";
 import { SqueletteFormulaire } from "@/components/cotiz/squelette";
 import { ChoixTheme } from "@/components/cotiz/theme";
-import { Button } from "@/components/ui/button";
 import { profilUtilisatrice } from "@/lib/auth";
 import { FormulaireProfil } from "./formulaire-profil";
 
@@ -34,9 +34,9 @@ async function Profil() {
         <p className="text-xs text-muted-foreground">« Automatique » suit le réglage de ce téléphone ou de cet ordinateur. Choix enregistré sur cet appareil.</p>
       </Section>
       <form action={seDeconnecter}>
-        <Button type="submit" variant="outline" className="w-full text-base">
+        <BoutonEnvoi variant="outline" className="w-full text-base">
           Se déconnecter
-        </Button>
+        </BoutonEnvoi>
       </form>
     </>
   );

@@ -1,10 +1,11 @@
+import { BoutonEnvoi } from "@/components/cotiz/bouton-envoi";
 import type { Metadata } from "next";
 import { EnTete } from "@/components/cotiz/en-tete";
 import Link from "next/link";
 import { Suspense } from "react";
 import { marquerSmsTraite } from "@/app/actions/capture";
 import { SqueletteListe } from "@/components/cotiz/squelette";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { exigerUtilisatrice } from "@/lib/auth";
 import { listerSmsNonLus } from "@/lib/donnees/paiements";
 import { formaterDateHeure } from "@/lib/format";
@@ -41,9 +42,9 @@ async function Liste() {
           </Link>
           <form action={marquerSmsTraite}>
             <input type="hidden" name="smsId" value={s.id} />
-            <Button type="submit" variant="outline" className="h-11 w-full text-base">
+            <BoutonEnvoi variant="outline" className="h-11 w-full text-base">
               Pas un paiement : écarter
-            </Button>
+            </BoutonEnvoi>
           </form>
         </li>
       ))}

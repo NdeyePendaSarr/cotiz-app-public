@@ -1,3 +1,4 @@
+import { BoutonEnvoi } from "@/components/cotiz/bouton-envoi";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { daterRepriseALaMain } from "@/app/actions/datation";
@@ -5,7 +6,6 @@ import { EnTete } from "@/components/cotiz/en-tete";
 import { Bloc } from "@/components/cotiz/section";
 import { SqueletteListe } from "@/components/cotiz/squelette";
 import { CLASSE_LISTE } from "@/components/cotiz/styles";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { exigerUtilisatrice } from "@/lib/auth";
 import { aujourdhui } from "@/lib/cycles/dates";
@@ -58,9 +58,9 @@ async function Liste() {
               </label>
               <div className="flex gap-2">
                 <Input id={`date-${v.id}`} type="date" name="date" max={maxDate} required className="h-11 flex-1 text-base" />
-                <Button type="submit" variant="outline" className="h-11 text-base">
+                <BoutonEnvoi variant="outline" className="h-11 text-base">
                   Dater
-                </Button>
+                </BoutonEnvoi>
               </div>
             </form>
           );
@@ -101,9 +101,9 @@ async function Liste() {
                         </option>
                       ))}
                     </select>
-                    <Button type="submit" variant="outline" className="h-11 text-base">
+                    <BoutonEnvoi variant="outline" className="h-11 text-base">
                       Dater avec celui-ci
-                    </Button>
+                    </BoutonEnvoi>
                   </form>
                 )}
 

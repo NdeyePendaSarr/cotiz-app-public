@@ -132,7 +132,7 @@ export function FormulaireImport({ action, caisseId, tontine }: { action: Action
                   <Label htmlFor={`role-${j}`} className="block truncate text-xs" title={apercu.exemples[j] ? `ex. « ${apercu.exemples[j]} »` : undefined}>
                     {apercu.enTetes[j] || `Colonne ${j + 1}`}
                   </Label>
-                  <select id={`role-${j}`} name={`role-${j}`} defaultValue={role} className={cn(CLASSE_LISTE, "text-sm")}>
+                  <select id={`role-${j}`} name={`role-${j}`} defaultValue={role} className={cn(CLASSE_LISTE, "text-base")}>
                     {/* « ordre » reste proposé dans une collecte : sinon une colonne N° détectée s'afficherait
                         sur la première option (« Nom complet ») et serait envoyée comme telle. */}
                     {ROLES.map((r) => (

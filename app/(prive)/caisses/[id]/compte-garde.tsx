@@ -1,3 +1,4 @@
+import { BoutonEnvoi } from "@/components/cotiz/bouton-envoi";
 import { Minus, Plus } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -6,7 +7,7 @@ import { EnTete } from "@/components/cotiz/en-tete";
 import { CourbeSolde } from "@/components/cotiz/graphiques";
 import { Bloc, Section } from "@/components/cotiz/section";
 import { TABLEAU } from "@/components/cotiz/styles";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { courbeSolde, LIBELLES_SENS, soldeCompte } from "@/lib/comptes";
 import { obtenirCompte } from "@/lib/donnees/comptes";
 import { formaterDate, formaterFCFA, LIBELLES_CANAL } from "@/lib/format";
@@ -192,9 +193,9 @@ export async function CompteGarde({ ownerId, caisseId, vue, selecteur }: { owner
               <form action={changerStatutCaisse}>
                 <input type="hidden" name="id" value={compte.id} />
                 <input type="hidden" name="statut" value={archive ? "ACTIVE" : "ARCHIVEE"} />
-                <Button type="submit" variant="outline" className="w-full text-base">
+                <BoutonEnvoi variant="outline" className="w-full text-base">
                   {archive ? "Réactiver" : "Archiver"}
-                </Button>
+                </BoutonEnvoi>
               </form>
             </div>
           </Bloc>

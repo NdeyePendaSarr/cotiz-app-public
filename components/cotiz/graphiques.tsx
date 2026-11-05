@@ -323,7 +323,7 @@ export function GrilleHistorique({
       {legende && <figcaption className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
         {(["PAYE", "PARTIEL", "NON_PAYE", "EN_ATTENTE"] as const).map((etat) => (
           <span key={etat} className="flex items-center gap-1.5">
-            <span aria-hidden className={cn("flex size-4 items-center justify-center rounded-[4px] text-[10px] font-bold", CASE[etat].fond)}>
+            <span aria-hidden className={cn("flex size-5 items-center justify-center rounded-[4px] text-[13px] leading-none font-bold", CASE[etat].fond)}>
               {CASE[etat].signe}
             </span>
             {LIBELLES_ETAT_CASE[etat]}
@@ -439,9 +439,9 @@ export function GrilleMois({ mois, lignes }: { mois: string[]; lignes: LigneMois
                 Membre
               </th>
               {mois.map((m) => (
-                <th key={m} scope="col" className="w-9 text-center text-[11px] leading-tight font-medium">
+                <th key={m} scope="col" className="w-10 text-center text-[13px] leading-tight font-medium">
                   {m.split(" ")[0]}
-                  <span className="block text-[10px] opacity-70">{m.split(" ")[1]}</span>
+                  <span className="block text-[13px] opacity-70">{m.split(" ")[1]}</span>
                 </th>
               ))}
               <th scope="col" className="pl-2 text-right font-medium whitespace-nowrap">
@@ -482,7 +482,7 @@ export function GrilleMois({ mois, lignes }: { mois: string[]; lignes: LigneMois
       <figcaption className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
         {(Object.keys(CASE_MOIS) as EtatMois[]).map((etat) => (
           <span key={etat} className="flex items-center gap-1.5">
-            <span aria-hidden className={cn("flex size-4 items-center justify-center rounded-[4px] text-[10px] font-bold", CASE_MOIS[etat].fond)}>
+            <span aria-hidden className={cn("flex size-5 items-center justify-center rounded-[4px] text-[13px] leading-none font-bold", CASE_MOIS[etat].fond)}>
               {CASE_MOIS[etat].signe}
             </span>
             {LIBELLES_ETAT_MOIS[etat]}

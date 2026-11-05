@@ -57,16 +57,17 @@ export function BarreOnglets({ aRapprocher }: { aRapprocher: number }) {
             ))}
           </ul>
         )}
-        <ul className="mx-auto grid max-w-md grid-cols-5">
+        {/* Largeur selon le texte : à 13 px, « Rapprocher » ne tient pas dans cinq colonnes égales sur petit écran. */}
+        <ul className="mx-auto flex max-w-md justify-between">
           {ONGLETS.map(({ href, libelle, Icone, ...o }) => {
             const estActif = actif(href);
             const classes = cn(
-              "relative flex h-14 w-full flex-col items-center justify-center gap-0.5 text-[12px] font-semibold",
+              "relative flex h-14 w-full flex-col items-center justify-center gap-0.5 text-[13px] leading-tight font-semibold",
               estActif ? "text-primary" : "text-muted-foreground",
             );
             if ("principal" in o) {
               return (
-                <li key={href}>
+                <li key={href} className="flex-auto">
                   <button
                     type="button"
                     onClick={() => setMenuOuvert((ouvert) => !ouvert)}
@@ -83,12 +84,12 @@ export function BarreOnglets({ aRapprocher }: { aRapprocher: number }) {
               );
             }
             return (
-              <li key={href}>
+              <li key={href} className="flex-auto">
                 <Link href={href} aria-current={estActif ? "page" : undefined} className={classes}>
                   <Icone aria-hidden className="size-6" strokeWidth={estActif ? 2.4 : 1.8} />
                   {libelle}
                   {href === "/rapprochement" && aRapprocher > 0 && (
-                    <span className="absolute top-1 left-1/2 ml-1.5 min-w-5 rounded-full bg-primary px-1 text-center text-[11px] leading-5 text-primary-foreground">
+                    <span className="absolute top-1 left-1/2 ml-1.5 min-w-5 rounded-full bg-primary px-1 text-center text-[13px] leading-5 text-primary-foreground">
                       {aRapprocher}
                     </span>
                   )}

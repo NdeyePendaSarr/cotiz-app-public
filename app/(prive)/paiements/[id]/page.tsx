@@ -1,3 +1,4 @@
+import { BoutonEnvoi } from "@/components/cotiz/bouton-envoi";
 import type { Metadata } from "next";
 import { EnTete } from "@/components/cotiz/en-tete";
 import Link from "next/link";
@@ -5,7 +6,6 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { SqueletteListe } from "@/components/cotiz/squelette";
 import { annulerRapprochement } from "@/app/actions/rapprochement";
-import { Button } from "@/components/ui/button";
 import { exigerUtilisatrice } from "@/lib/auth";
 import { historiquePaiement } from "@/lib/donnees/paiements";
 import { excedentPaiement } from "@/lib/dons";
@@ -94,9 +94,9 @@ async function DetailPaiement({ params }: { params: Promise<{ id: string }> }) {
             // Seul moyen de corriger ce versement : le paiement redevient « à rapprocher », le versement disparaît.
             <form action={annulerRapprochement}>
               <input type="hidden" name="paiementId" value={p.id} />
-              <Button type="submit" variant="outline" className="h-11 w-full text-base">
+              <BoutonEnvoi variant="outline" className="h-11 w-full text-base">
                 Annuler le versement sur le compte
-              </Button>
+              </BoutonEnvoi>
             </form>
           )}
         </section>

@@ -166,7 +166,7 @@ describe("isolation entre deux trésorières", () => {
     expect(await lecturesCaisses.obtenirCaisse(A, b.tontine.id)).toBeNull();
     expect(await lecturesPersonnes.obtenirPersonne(A, b.awa.id)).toBeNull();
     expect(await lecturesMembres.listerMembres(A, b.tontine.id)).toEqual([]);
-    expect(await lecturesCycles.obtenirCycleOuvert(A, b.tontine.id)).toBeNull();
+    expect(await lecturesCycles.compterCycles(A, b.tontine.id)).toBe(0);
     expect(await lecturesSuivi.suiviCaisse(A, b.tontine.id)).toBeNull();
     expect(await lecturesPaiements.historiquePaiement(A, b.rapproche.id)).toBeNull();
     expect(await lecturesPaiements.obtenirSmsNonLu(A, b.sms.id)).toBeNull();

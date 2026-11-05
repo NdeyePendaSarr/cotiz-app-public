@@ -1,3 +1,4 @@
+import { BoutonEnvoi } from "@/components/cotiz/bouton-envoi";
 import type { Metadata } from "next";
 import { EnTete } from "@/components/cotiz/en-tete";
 import { Suspense } from "react";
@@ -5,7 +6,6 @@ import { CopyX, HandHeart } from "lucide-react";
 import { garderCommeDon } from "@/app/actions/dons";
 import { ignorerDoublons, marquerRembourse } from "@/app/actions/remboursement";
 import { SqueletteListe } from "@/components/cotiz/squelette";
-import { Button } from "@/components/ui/button";
 import { exigerUtilisatrice } from "@/lib/auth";
 import { excedentsARembourser, payeesParImport } from "@/lib/donnees/suivi";
 import { prisma } from "@/lib/prisma";
@@ -58,10 +58,10 @@ async function Liste() {
             {doublons.map((p) => (
               <input key={p.id} type="hidden" name="paiementId" value={p.id} />
             ))}
-            <Button type="submit" className="mt-1 h-auto min-h-12 w-full bg-or text-base whitespace-normal text-or-foreground hover:bg-or/90">
+            <BoutonEnvoi className="mt-1 h-auto min-h-12 w-full bg-or text-base whitespace-normal text-or-foreground hover:bg-or/90">
               <CopyX aria-hidden />
               Ignorer {doublons.length > 1 ? `les ${doublons.length} doublons` : "ce doublon"} · {formaterFCFA(doublons.reduce((s, p) => s + p.excedent, 0))}
-            </Button>
+            </BoutonEnvoi>
           </form>
         </section>
       )}
@@ -77,10 +77,10 @@ async function Liste() {
                   </span>
                   <form action={ignorerDoublons}>
                     <input type="hidden" name="paiementId" value={p.id} />
-                    <Button type="submit" variant="outline" className="mt-1 h-11 w-full text-base">
+                    <BoutonEnvoi variant="outline" className="mt-1 h-11 w-full text-base">
                       <CopyX aria-hidden />
                       Ignorer, c&apos;est le même argent
-                    </Button>
+                    </BoutonEnvoi>
                   </form>
                 </>
               )}
@@ -88,17 +88,17 @@ async function Liste() {
               {p.collecte && (
                 <form action={garderCommeDon}>
                   <input type="hidden" name="paiementId" value={p.id} />
-                  <Button type="submit" className="mt-1 h-auto min-h-11 w-full text-base whitespace-normal">
+                  <BoutonEnvoi className="mt-1 h-auto min-h-11 w-full text-base whitespace-normal">
                     <HandHeart aria-hidden />
                     Garder comme bonne volonté ({p.collecte.nom})
-                  </Button>
+                  </BoutonEnvoi>
                 </form>
               )}
               <form action={marquerRembourse}>
                 <input type="hidden" name="paiementId" value={p.id} />
-                <Button type="submit" variant="outline" className="mt-1 h-11 w-full text-base">
+                <BoutonEnvoi variant="outline" className="mt-1 h-11 w-full text-base">
                   Marquer remboursé
-                </Button>
+                </BoutonEnvoi>
               </form>
             </CartePaiement>
           </li>

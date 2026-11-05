@@ -1,5 +1,6 @@
 "use client";
 
+import { BoutonEnvoi } from "@/components/cotiz/bouton-envoi";
 import { useState } from "react";
 import { supprimerMouvement } from "@/app/actions/comptes";
 import { Button } from "@/components/ui/button";
@@ -24,9 +25,9 @@ export function SupprimerMouvement({ mouvementId }: { mouvementId: string }) {
         <Button type="button" variant="outline" onClick={() => setConfirmation(false)} className="text-base">
           Annuler
         </Button>
-        <Button type="submit" variant="destructive" className="text-base">
+        <BoutonEnvoi variant="destructive" className="text-base">
           Supprimer
-        </Button>
+        </BoutonEnvoi>
       </div>
     </form>
   );
