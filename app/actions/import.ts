@@ -3,6 +3,7 @@
 import { refresh } from "next/cache";
 import { z } from "zod";
 import { journaliser } from "@/lib/audit";
+import { signalerErreur } from "@/lib/erreurs";
 import { exigerUtilisatrice } from "@/lib/auth";
 import { creerEcheancesDuCycle } from "@/lib/cycles/echeances";
 import { listerPersonnesPourImport } from "@/lib/donnees/personnes";
@@ -199,7 +200,8 @@ export async function traiterImport(caisseId: string, _etat: EtatImport, formDat
       },
       { timeout: 30_000 },
     );
-  } catch {
+  } catch (e) {
+    signalerErreur("import.liste", e);
     // Par exemple : un membre ajouté entre l'aperçu et la confirmation. Rien n'a été écrit.
     return { apercu, erreur: "L'import a échoué et rien n'a été enregistré. Relance l'analyse puis réessaie." };
   }

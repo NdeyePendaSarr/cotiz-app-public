@@ -2,6 +2,7 @@
 
 import { refresh } from "next/cache";
 import { journaliser } from "@/lib/audit";
+import { signalerErreur } from "@/lib/erreurs";
 import { annoncer } from "@/lib/annonce";
 import { exigerUtilisatrice } from "@/lib/auth";
 import { ajouterJours, aujourdhui, prochaineEcheance } from "@/lib/cycles/dates";
@@ -51,7 +52,8 @@ export async function ouvrirPremierCycle(
       const cycle = await tx.cycle.create({ data: { caisseId: caisse.id, numero, dateDebut, dateEcheance }, select: { id: true } });
       await creerEcheancesDuCycle(tx, cycle.id, caisse.id, caisse.montantCotisation);
     });
-  } catch {
+  } catch (e) {
+    signalerErreur("cycles.ouvrir", e);
     // Index unique partiel « un seul cycle ouvert » ou numéro déjà pris : rien n'est écrit.
     return { erreur: "Le cycle n'a pas pu être ouvert (un cycle est peut-être déjà ouvert). Recharge la page.", valeurs };
   }
@@ -126,7 +128,8 @@ export async function cloturerCycle(caisseId: string): Promise<EtatCloture> {
       }
       await journaliser(tx, { ownerId, entite: "Cycle", entiteId: cycle.id, action: "MODIFICATION", details: { statut: "CLOTURE", numero: cycle.numero, cycleSuivant } });
     });
-  } catch {
+  } catch (e) {
+    signalerErreur("cycles.cloturer", e);
     return { erreur: "La clôture a échoué et rien n'a été modifié. Recharge la page." };
   }
   await annoncer(caisse.type === "TONTINE" ? "Cycle clôturé, le suivant est ouvert ✓" : caisse.type === "MENSUALITE" ? "Mensualité clôturée" : "Collecte clôturée");

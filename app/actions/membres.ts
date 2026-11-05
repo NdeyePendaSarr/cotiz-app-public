@@ -8,6 +8,7 @@ import { annoncer } from "@/lib/annonce";
 import { exigerUtilisatrice } from "@/lib/auth";
 import { assurerEcheanceMembre, retirerEcheanceMembre } from "@/lib/cycles/echeances";
 import { ordreSuivant } from "@/lib/donnees/membres";
+import { signalerErreur } from "@/lib/erreurs";
 import { StatutMembre } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { schemaIdentifiant } from "@/lib/validation/caisse";
@@ -128,7 +129,8 @@ export async function attribuerOrdre(_etat: EtatOrdre, formData: FormData): Prom
 
   try {
     await prisma.membreCaisse.update({ where: { id: membreId }, data: { ordrePassage: ordre } });
-  } catch {
+  } catch (e) {
+    signalerErreur("membres.ordre", e);
     // Pris entre la vérification et l'écriture : la contrainte unique a refusé.
     return { erreur: `L'ordre ${ordre} vient d'être pris. Réessaie.` };
   }

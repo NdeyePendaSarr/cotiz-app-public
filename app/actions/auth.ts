@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { annulerEssai, confirmerEchec, messageBlocage, oublierEchecs, reseauDepuisEntetes, reserverEssai } from "@/lib/connexion/tentatives";
+import { signalerErreur } from "@/lib/erreurs";
 import { creerClientSupabase } from "@/lib/supabase/serveur";
 import { schemaConnexion } from "@/lib/validation/auth";
 
@@ -32,7 +33,8 @@ export async function seConnecter(_etat: EtatConnexion, formData: FormData): Pro
       password: saisie.data.motDePasse,
     });
     codeErreur = error ? (error.code ?? "inconnue") : null;
-  } catch {
+  } catch (e) {
+    signalerErreur("connexion", e);
     codeErreur = "panne";
   }
 

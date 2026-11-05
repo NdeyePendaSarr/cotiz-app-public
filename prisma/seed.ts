@@ -106,6 +106,10 @@ async function main() {
     async (tx) => {
       // 1. Remise à zéro : uniquement les données de la trésorière de démo.
       //    Les suppressions en cascade retirent membres, cycles, échéances et allocations.
+      //    Mouvements, bonnes volontés et dépenses d'abord : ils protègent leur caisse.
+      await tx.mouvementCompte.deleteMany({ where: { ownerId } });
+      await tx.don.deleteMany({ where: { ownerId } });
+      await tx.depense.deleteMany({ where: { ownerId } });
       await tx.paiement.deleteMany({ where: { ownerId } });
       await tx.caisse.deleteMany({ where: { ownerId } });
       await tx.personne.deleteMany({ where: { ownerId } });

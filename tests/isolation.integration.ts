@@ -482,7 +482,11 @@ describe("isolation entre deux trésorières", () => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const cle = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
     expect(url && cle).toBeTruthy();
-    for (const table of ["utilisatrices", "caisses", "personnes", "paiements", "allocations", "journal_audit", "sms_non_lus", "depenses", "dons"]) {
+    // Toutes les tables de la base : une table ajoutée sans RLS fait échouer ce test.
+    const tables = await prisma.$queryRaw<{ tablename: string; rowsecurity: boolean }[]>`SELECT tablename, rowsecurity FROM pg_tables WHERE schemaname = 'public'`;
+    expect(tables.length).toBeGreaterThanOrEqual(16);
+    expect(tables.filter((t) => !t.rowsecurity).map((t) => t.tablename)).toEqual([]);
+    for (const { tablename: table } of tables) {
       const reponse = await fetch(`${url}/rest/v1/${table}?select=*`, { headers: { apikey: cle!, Authorization: `Bearer ${cle}` } });
       const lignes = reponse.ok ? await reponse.json() : [];
       expect(lignes, table).toEqual([]);

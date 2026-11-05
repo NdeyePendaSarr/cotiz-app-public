@@ -47,3 +47,7 @@ next-env.d.ts
 # outils locaux (non versionnés)
 CLAUDE.md
 /.claude/
+
+# sauvegardes de la base (jamais dans le dépôt)
+*.dump
+*-manifeste.json

@@ -139,6 +139,30 @@ describe("comptes gardés : un seul membre, son titulaire", () => {
   });
 });
 
+describe("historique d'une caisse", () => {
+  it("supprimer une caisse qui porte des mouvements, des dons ou des dépenses est refusé", async () => {
+    const A = a.utilisatrice.id;
+    const date = aujourdhuiUtc();
+    const caisseAvec = async (nom: string, ajouter: (caisseId: string) => Promise<unknown>) => {
+      const caisse = await prisma.caisse.create({ data: { ownerId: A, nom, type: "COLLECTE", montantCotisation: 1_000, dateLimite: new Date("2030-01-15") } });
+      await ajouter(caisse.id);
+      return caisse.id;
+    };
+    const caisses = [
+      await caisseAvec("Avec mouvement", (caisseId) => prisma.mouvementCompte.create({ data: { ownerId: A, caisseId, date, montant: 1_000, sens: "VERSEMENT", canal: "CASH" } })),
+      await caisseAvec("Avec don", (caisseId) => prisma.don.create({ data: { ownerId: A, caisseId, date, montant: 1_000, donateur: "ABK", canal: "CASH" } })),
+      await caisseAvec("Avec dépense", (caisseId) => prisma.depense.create({ data: { ownerId: A, caisseId, date, montant: 1_000, motif: "Essai", canal: "CASH", categorie: "COMMUNICATION" } })),
+    ];
+    for (const id of caisses) await expect(prisma.caisse.delete({ where: { id } })).rejects.toThrow();
+    expect(await prisma.caisse.count({ where: { id: { in: caisses } } })).toBe(3);
+    // Nettoyage : les lignes d'abord, la caisse ensuite. La suppression d'un compte entier est couverte par afterAll.
+    await prisma.mouvementCompte.deleteMany({ where: { caisseId: { in: caisses } } });
+    await prisma.don.deleteMany({ where: { caisseId: { in: caisses } } });
+    await prisma.depense.deleteMany({ where: { caisseId: { in: caisses } } });
+    await prisma.caisse.deleteMany({ where: { id: { in: caisses } } });
+  });
+});
+
 describe("comptes gardés : isolation", () => {
   it("A ne lit rien du compte de B", async () => {
     const A = a.utilisatrice.id;

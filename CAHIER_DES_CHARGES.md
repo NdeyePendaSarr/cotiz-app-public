@@ -202,6 +202,7 @@ Le schéma sépare ce qui est dû (`Echeance`) de ce qui est reçu (`Paiement`),
 | `Depense` (`depenses`) | Sortie d'argent d'une collecte | Catégorie fixe, canal |
 | `Don` (`dons`) | Bonne volonté versée à une collecte | `remisPar`, `paiementId` unique s'il vient d'un excédent |
 | `JournalAudit` (`journal_audit`) | Historique de toute mutation d'argent et des changements de caisse, cycle, personne, membre | Écrit dans la même transaction |
+| `MouvementCompte` (`mouvements_compte`) | Versement ou retrait d'un compte gardé | `sens`, canal, `paiementId` unique s'il vient d'un paiement ; solde négatif permis |
 | `TentativeConnexion` (`tentatives_connexion`) | Échecs de connexion récents | Adresse jamais en clair (empreinte SHA-256), purgée après un jour |
 
 **`Paiement` en détail**
@@ -219,7 +220,7 @@ Le schéma sépare ce qui est dû (`Echeance`) de ce qui est reçu (`Paiement`),
 
 - RLS activée sans policy sur toutes les tables, `_prisma_migrations` comprise : l'API REST publique de Supabase ne voit rien.
 - `CHECK (montant > 0)` sur `paiements`, `allocations`, `dons` et `depenses`.
-- Historique financier protégé : `echeances → membres_caisse`, `allocations → echeances` et `dons → paiements` sont en `NO ACTION DEFERRABLE INITIALLY DEFERRED`. Supprimer une caisse, une personne ou un cycle qui porte des affectations est refusé ; supprimer un compte entier reste possible. `echeances → cycles` reste en cascade.
+- Historique financier protégé : `echeances → membres_caisse`, `allocations → echeances`, `dons → paiements`, `mouvements_compte → paiements`, et `depenses`, `dons` et `mouvements_compte → caisses` sont en `NO ACTION DEFERRABLE INITIALLY DEFERRED`. Supprimer une caisse, une personne ou un cycle qui porte des affectations, des mouvements, des bonnes volontés ou des dépenses est refusé ; supprimer un compte entier reste possible. `echeances → cycles` reste en cascade.
 - Index sur les clés étrangères les plus lues (`allocations(echeance_id)`, `echeances(membre_caisse_id)`, `membres_caisse(personne_id)`, `paiements(personne_id)`, `paiements(owner_id, origine)`).
 
 **Règles métier liées au schéma**
@@ -231,10 +232,12 @@ Le schéma sépare ce qui est dû (`Echeance`) de ce qui est reçu (`Paiement`),
 - Les mutations d'argent concurrentes (double appui, deux onglets) sont sérialisées par des verrous de ligne en tête de transaction (`lib/verrous.ts`) : un paiement n'est jamais affecté au-delà de son montant, une échéance jamais payée deux fois.
 - Modèles `Piece` (captures) et `ValidationCash` : ajoutés en v1, pas avant.
 
-**Deux types de caisse**
+**Types de caisse**
 
 | Type | Exemple | Fonctionnement |
 | --- | --- | --- |
+| `MENSUALITE` | Cotisation de la cellule, 500 FCFA par mois pendant 12 mois | Un seul cycle pour toute la durée, une échéance par membre = montant × nombre de mois. État de chaque mois, retard et avance calculés depuis le versé. Dépenses et bonnes volontés comme une collecte |
+| `COMPTE_GARDE` | Argent gardé pour un proche | Ni cycle ni échéance. Le titulaire est l'unique membre. Versements et retraits, solde courant (négatif permis) |
 | `TONTINE` | Caisse mensuelle avec ordre de passage | Cycles successifs, une échéance par membre et par cycle, un bénéficiaire par cycle (v1) |
 | `COLLECTE` | Participation à un séminaire, 5 000 FCFA par membre | Un seul cycle, créé automatiquement avec la caisse. Paiement en une fois, par tranches, ou partiel. Clôture à la date limite ou à la main |
 
@@ -302,7 +305,7 @@ Deux moments dans la journée : capturer en 10 secondes quand l'argent arrive, r
 
 La v0 est terminée quand chaque case est cochée et qu'un vrai cycle a été géré avec l'app, sans cahier papier.
 
-État au 3 novembre 2026 : **tout est implémenté** et couvert par les tests automatiques (456 tests unitaires, 29 tests d'intégration). 21 critères sur 24 vérifiés par la trésorière. Une case n'est cochée qu'après vérification par la trésorière sur l'application en ligne ; les cases vides restent à confirmer en usage réel.
+État au 3 novembre 2026 : **tout est implémenté** et couvert par les tests automatiques. 21 critères sur 24 vérifiés par la trésorière. Une case n'est cochée qu'après vérification par la trésorière sur l'application en ligne ; les cases vides restent à confirmer en usage réel.
 
 - [x] Connexion et déconnexion par e-mail + mot de passe (comptes créés dans le tableau de bord Supabase).
 - [x] Une utilisatrice ne voit jamais les données d'une autre (testé avec 2 comptes).
@@ -437,7 +440,7 @@ Tu travailles avec une développeuse qui doit pouvoir expliquer chaque choix en 
   - **Production** = le projet Supabase cloud « cotiz ». Variables dans `.env.prod`, que Next ne charge jamais automatiquement ; seul `npm run db:migrate:prod` le lit, explicitement.
   - **Développement** = Supabase en local (CLI + Docker), variables dans `.env` (valeurs locales, non secrètes). `supabase/config.toml` reproduit l'auth de la production : inscription fermée, mot de passe de 8 caractères minimum, pas de confirmation d'e-mail.
   - **Seed** : local uniquement. Il crée le compte de démo dans Supabase Auth local s'il manque, et refuse de tourner si `NODE_ENV=production` ou si `DATABASE_URL` ou `NEXT_PUBLIC_SUPABASE_URL` ne pointent pas vers `localhost`/`127.0.0.1`.
-  - **Sauvegardes** de la base cloud : hors du projet, sur le poste de la trésorière (jamais dans le dépôt).
+  - **Sauvegardes** de la base cloud : hors du projet, sur le poste de la trésorière avec une copie sur un support externe chiffré (jamais dans le dépôt). Chaque semaine et avant chaque migration ; procédure dans le README.
   - Le compte de démo et ses données ont été retirés de la production le 29/10/2026, après sauvegarde et validation de la liste. Le compte de la trésorière est conservé, sans donnée.
 - **Phase 10 (ajout au v0, demandé par la trésorière) : cellule et versés à l'import**
   - **Cellule** : champ facultatif de la personne (`Personne.cellule`, 50 caractères), la même dans toutes ses caisses (cellule de la commission : Organisation, Technique…). Saisie sur la fiche ou lue à l'import (colonne « Cellule »). À l'import, elle complète une cellule vide, ne remplace jamais. Dans le suivi d'une caisse : affichée sous chaque nom, filtre par cellule, totaux par cellule (reçu / attendu, à jour), et récap WhatsApp regroupé par cellule.
@@ -544,3 +547,10 @@ Tu travailles avec une développeuse qui doit pouvoir expliquer chaque choix en 
   - **Blocage entre réseaux** : pas de compteur par adresse tous réseaux confondus (décision du 05/11/2026) : personne, ailleurs, ne doit pouvoir bloquer la trésorière. Risque accepté : un botnet garde 5 essais par adresse IP.
   - **Limites** : modèle de datation à 2 000 caractères, historique d'un compte à 500 lignes par import.
   - **Compte gardé** : ni 2e membre (ajout, création de personne, import de liste), ni retrait du titulaire. Sur un compte ancien à 2 membres, le titulaire reste le premier inscrit.
+- **Audit du 05/11/2026, lot 3 (exploitation)** :
+  - **Sauvegardes** : `npm run db:sauvegarde` (tables et comptes, par Docker) et `npm run db:sauvegarde:verifier` (restauration dans une base locale temporaire, comparée au manifeste). Sur le poste, avec copie externe (décision du 05/11/2026) ; pas de sauvegarde automatique par GitHub, qui demanderait de lui confier l'URL de la base.
+  - **CI** : GitHub Actions à chaque push (lint, types, tests, Supabase local, tests d'intégration, build), sans aucun secret.
+  - **Supervision** : erreurs serveur dans les journaux Vercel, jamais le message d'erreur (données personnelles possibles). Pas de service d'alerte en v0 : il demanderait une dépendance.
+  - **Base** : `depenses`, `dons` et `mouvements_compte → caisses` en clés différées.
+  - **Tests** : RLS contrôlée sur toutes les tables de la base ; un `journaliser` exigé pour chaque entité modifiée.
+  - **Pages** : page 404 en français ; dans une page privée, la navigation reste.

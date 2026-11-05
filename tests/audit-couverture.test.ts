@@ -9,7 +9,9 @@ import { describe, expect, it } from "vitest";
 
 const RACINE = join(__dirname, "..");
 const DOSSIERS = ["app", "lib"];
-const MUTATION = /\b(tx|prisma)\.(paiement|allocation|smsNonLu|depense|don|mouvementCompte)\.(create|createMany|update|updateMany|delete|deleteMany|upsert)\s*\(/g;
+const MUTATION = /\b(tx|prisma)\.(paiement|allocation|smsNonLu|depense|don|mouvementCompte)\.(create|createMany|createManyAndReturn|update|updateMany|updateManyAndReturn|delete|deleteMany|upsert)\s*\(/g;
+// Nom de l'entité dans journaliser(tx, { entite: "…" }).
+const ENTITES: Record<string, string> = { paiement: "Paiement", allocation: "Allocation", smsNonLu: "SmsNonLu", depense: "Depense", don: "Don", mouvementCompte: "MouvementCompte" };
 
 function fichiersTs(dossier: string): string[] {
   return readdirSync(dossier, { withFileTypes: true }).flatMap((e) => {
@@ -55,5 +57,14 @@ describe("couverture du journal d'audit", () => {
       m.corps.includes("$transaction") || /^(?:export )?(?:async )?function \w+\(\s*tx: /.test(m.corps) || /^(?:export )?const \w+ = (?:async )?\(\s*tx: /.test(m.corps);
     expect(dansUneTransaction, "transaction manquante").toBe(true);
     expect(m.corps, "appel à journaliser() manquant").toContain("journaliser(");
+    // Un journal par entité modifiée : celui d'un paiement ne couvre pas la suppression d'une allocation.
+    for (const entite of new Set(m.appels.map((a) => a.split(".")[1]))) {
+      expect(m.corps, `journal de ${ENTITES[entite]} manquant`).toMatch(new RegExp(`entite: "${ENTITES[entite]}"`));
+    }
+  });
+
+  it("aucune écriture SQL brute ne contourne ce contrôle", () => {
+    const brutes = DOSSIERS.flatMap((d) => fichiersTs(join(RACINE, d))).filter((f) => /\$executeRaw(Unsafe)?\b/.test(readFileSync(f, "utf8")) && /\b(paiements|allocations|sms_non_lus|depenses|dons|mouvements_compte)\b/.test(readFileSync(f, "utf8")));
+    expect(brutes.map((f) => f.slice(RACINE.length + 1))).toEqual([]);
   });
 });

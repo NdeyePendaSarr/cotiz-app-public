@@ -334,7 +334,7 @@ model Depense {
   updatedAt    DateTime         @updatedAt @map("updated_at")
 
   owner  Utilisatrice @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  caisse Caisse       @relation(fields: [caisseId], references: [id], onDelete: Cascade)
+  caisse Caisse       @relation(fields: [caisseId], references: [id], onDelete: NoAction)
 
   @@index([ownerId, caisseId])
   @@map("depenses")
@@ -359,7 +359,7 @@ model Don {
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   owner    Utilisatrice @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  caisse   Caisse       @relation(fields: [caisseId], references: [id], onDelete: Cascade)
+  caisse   Caisse       @relation(fields: [caisseId], references: [id], onDelete: NoAction)
   paiement Paiement?    @relation(fields: [paiementId], references: [id], onDelete: NoAction)
 
   @@index([ownerId, caisseId])
@@ -394,7 +394,7 @@ model MouvementCompte {
   updatedAt  DateTime      @updatedAt @map("updated_at")
 
   owner    Utilisatrice @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  caisse   Caisse       @relation(fields: [caisseId], references: [id], onDelete: Cascade)
+  caisse   Caisse       @relation(fields: [caisseId], references: [id], onDelete: NoAction)
   paiement Paiement?    @relation(fields: [paiementId], references: [id], onDelete: NoAction)
 
   @@index([ownerId, caisseId, date])

@@ -14,7 +14,9 @@
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
     "db:seed": "prisma db seed",
-    "db:migrate:prod": "node --env-file=.env.prod node_modules/prisma/build/index.js migrate deploy"
+    "db:migrate:prod": "node --env-file=.env.prod node_modules/prisma/build/index.js migrate deploy",
+    "db:sauvegarde": "node --env-file=.env.prod scripts/sauvegarde-prod.mjs",
+    "db:sauvegarde:verifier": "node --env-file=.env scripts/verifier-sauvegarde.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
