@@ -5,6 +5,7 @@
 
 import { formaterFCFA } from "@/lib/format";
 import { formaterTelephone } from "@/lib/telephone";
+import { chiffresFcfa } from "@/lib/validation/montant";
 
 /** Modèle prérempli : seules la date (JJ et l'heure) et la référence sont à compléter. */
 export function modeleOrangeMoney(p: { montant: number; nom: string | null; numero: string | null; aujourdhui: Date }) {
@@ -16,8 +17,11 @@ export function modeleOrangeMoney(p: { montant: number; nom: string | null; nume
 /**
  * Lit le modèle complété : date et heure (« 31/10/2026 à 01h38 » ou « 01:38 », heure de Dakar = UTC)
  * et référence (majuscules, sans espaces : « PP260415.0932.C48217 »). null si absent ou incomplet.
+ * Le montant de la première ligne est relu : il doit rester celui du versé.
  */
-export function lireModeleOrangeMoney(texte: string): { dateReception: Date | null; reference: string | null } {
+export function lireModeleOrangeMoney(texte: string): { montant: number | null; dateReception: Date | null; reference: string | null } {
+  const m = /^\s*Orange Money\s*·\s*(.+?)\s*F(?:CFA)?(?:\s|$)/im.exec(texte);
+  const chiffres = m ? chiffresFcfa(m[1]) : null;
   const d = /^\s*Date\s*:?\s*(\d{2})\/(\d{2})\/(\d{4})\s+(?:à|a)\s+(\d{1,2})\s*[h:]\s*(\d{2})\s*$/im.exec(texte);
   let dateReception: Date | null = null;
   if (d) {
@@ -28,5 +32,5 @@ export function lireModeleOrangeMoney(texte: string): { dateReception: Date | nu
   }
   const r = /^\s*R[ée]f[ée]rence\s*:?\s*(.*)$/im.exec(texte);
   const reference = (r?.[1] ?? "").toUpperCase().replace(/\s+/g, "");
-  return { dateReception, reference: /^[A-Z0-9][A-Z0-9.]{7,39}$/.test(reference) ? reference : null };
+  return { montant: chiffres === null ? null : Number(chiffres), dateReception, reference: /^[A-Z0-9][A-Z0-9.]{7,39}$/.test(reference) ? reference : null };
 }

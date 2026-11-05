@@ -3,6 +3,7 @@
 
 import { normaliserTelephone } from "@/lib/telephone";
 import { normaliserNom } from "@/lib/texte";
+import { chiffresFcfa, MONTANT_MAX } from "@/lib/validation/montant";
 
 export const ROLES = ["nomComplet", "prenom", "nom", "telephone", "ordre", "cellule", "verse", "canal", "ignorer"] as const;
 export type Role = (typeof ROLES)[number];
@@ -182,13 +183,16 @@ export function extraireLignes(tableau: Tableau, detection: Detection): { lues: 
 
 /**
  * Montant déjà versé lu dans la colonne « Versé » : « 2 000 », « 2.000 », « 2000 F » ou
- * « 2 000 FCFA » → 2000. Vide ou 0 → 0 (rien versé). Illisible → null.
+ * « 2 000 FCFA » → 2000 ; « 5000.00 » → 5000. Vide ou 0 → 0 (rien versé). Illisible (« 1.5 ») ou
+ * au-dessus du plafond → null.
  */
 export function lireVerse(texte: string): number | null {
-  const t = texte.replace(/[\s.\u00a0\u202f]/g, "").replace(/f(cfa)?$/i, "");
+  const t = texte.replace(/s/g, "").replace(/f(cfa)?$/i, "");
   if (t === "" || t === "-") return 0;
-  if (!/^\d{1,8}$/.test(t)) return null;
-  return Number(t);
+  const chiffres = chiffresFcfa(t);
+  if (chiffres === null) return null;
+  const montant = Number(chiffres);
+  return montant <= MONTANT_MAX ? montant : null;
 }
 
 export type CanalLu = "WAVE" | "ORANGE_MONEY" | "CASH";

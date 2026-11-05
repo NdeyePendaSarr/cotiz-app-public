@@ -47,9 +47,9 @@ async function Liste() {
       </p>
       <ul className="flex flex-col gap-3">
         {verses.map((v) => {
-          // SMS déjà dans Cotiz (ignorés, libres) du même canal : de la même personne d'abord, puis du même montant.
-          const rang = (s: (typeof sms)[number]) => (s.personneReconnue === v.personneId ? 0 : s.montant === v.montant ? 1 : 2);
-          const options = sms.filter((s) => s.canal === v.canal).sort((a, b) => rang(a) - rang(b));
+          // SMS déjà dans Cotiz (ignorés, libres) du même canal et du même montant (le serveur le revérifie) : de la même personne d'abord.
+          const rang = (s: (typeof sms)[number]) => (s.personneReconnue === v.personneId ? 0 : 1);
+          const options = sms.filter((s) => s.canal === v.canal && s.montant === v.montant).sort((a, b) => rang(a) - rang(b));
           const action = daterRepriseALaMain.bind(null, v.id);
           const champDate = (libelle: string) => (
             <form action={action} className="flex flex-col gap-2 pt-3">

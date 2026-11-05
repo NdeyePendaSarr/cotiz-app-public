@@ -7,10 +7,12 @@ import { journaliser } from "@/lib/audit";
 import { annoncer } from "@/lib/annonce";
 import { exigerUtilisatrice } from "@/lib/auth";
 import { aujourdhui } from "@/lib/cycles/dates";
+import { formaterFCFA } from "@/lib/format";
 import { StatutCaisse } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { montantDuParMembre } from "@/lib/mensualite";
 import { schemaCaisse, schemaIdentifiant, versChampsCaisse } from "@/lib/validation/caisse";
+import { verrouillerEcheancesDeCaisse } from "@/lib/verrous";
 
 export type EtatFormulaireCaisse =
   | { erreur?: string; erreurs?: Record<string, string>; valeurs?: Record<string, string> }
@@ -97,28 +99,58 @@ export async function modifierCaisse(
   // Le nouveau montant ne vaut que pour les cycles futurs : les échéances existantes
   // gardent leur montantDu (décision du cahier, phase 4).
   const donnees = saisie.data;
-  await prisma.$transaction(async (tx) => {
+  const refus = await prisma.$transaction(async (tx) => {
+    let detailsMensualite = {};
+    // Mensualité : premier mois, durée ou montant corrigés → dates du cycle et dû de chaque membre
+    // recalculés (une seule échéance par membre pour toute la durée ; ce qui est versé reste versé).
+    if (donnees.type === "MENSUALITE") {
+      // Verrou d'abord : aucune validation ne peut changer le versé entre le contrôle et le recalcul.
+      await verrouillerEcheancesDeCaisse(tx, ownerId, idValide.data);
+      const champs = versChampsCaisse(donnees);
+      const nouveauDu = montantDuParMembre(champs);
+      const avant = await tx.caisse.findFirstOrThrow({ where: { id: idValide.data, ownerId }, select: { montantCotisation: true, nombreMois: true, moisDebut: true } });
+      const cycles = await tx.cycle.findMany({ where: { caisseId: idValide.data, statut: "OUVERT" }, select: { id: true } });
+
+      // Clôturée : ses échéances ne sont plus recalculées, ses paramètres ne bougent donc plus.
+      const parametresChanges = avant.montantCotisation !== champs.montantCotisation || avant.nombreMois !== champs.nombreMois || avant.moisDebut?.getTime() !== donnees.moisDebut.getTime();
+      if (cycles.length === 0 && parametresChanges) return "Cette mensualité est clôturée : son montant, sa durée et son premier mois ne peuvent plus changer.";
+
+      // Versé au-delà du nouveau dû : refus (cet argent déjà affecté n'apparaîtrait plus nulle part).
+      const echeances = await tx.echeance.findMany({
+        where: { cycleId: { in: cycles.map((c) => c.id) } },
+        select: { allocations: { select: { montant: true } }, membre: { select: { personne: { select: { nomComplet: true } } } } },
+      });
+      const depassements = echeances
+        .map((e) => ({ nom: e.membre.personne.nomComplet, verse: e.allocations.reduce((s, a) => s + a.montant, 0) }))
+        .filter((e) => e.verse > nouveauDu);
+      if (depassements.length > 0) {
+        const noms = depassements.slice(0, 5).map((e) => `${e.nom} (${formaterFCFA(e.verse)})`).join(", ");
+        const autres = depassements.length > 5 ? ` et ${depassements.length - 5} autre(s)` : "";
+        return `Impossible : le nouveau dû serait de ${formaterFCFA(nouveauDu)}, mais ont déjà versé plus : ${noms}${autres}. Corrige d'abord leurs rapprochements.`;
+      }
+
+      await tx.cycle.updateMany({ where: { id: { in: cycles.map((c) => c.id) } }, data: { dateDebut: donnees.moisDebut, dateEcheance: champs.dateLimite! } });
+      await tx.echeance.updateMany({ where: { cycleId: { in: cycles.map((c) => c.id) } }, data: { montantDu: nouveauDu } });
+      detailsMensualite = {
+        avant: { montantCotisation: avant.montantCotisation, nombreMois: avant.nombreMois, moisDebut: avant.moisDebut?.toISOString().slice(0, 10) ?? null, montantDu: montantDuParMembre({ type: "MENSUALITE", ...avant }) },
+        apres: { nombreMois: champs.nombreMois, moisDebut: donnees.moisDebut.toISOString().slice(0, 10), montantDu: nouveauDu },
+      };
+    }
     await tx.caisse.updateMany({ where: { id: idValide.data, ownerId }, data: versChampsCaisse(donnees) });
     await journaliser(tx, {
       ownerId,
       entite: "Caisse",
       entiteId: idValide.data,
       action: "MODIFICATION",
-      details: { nom: donnees.nom, montantCotisation: versChampsCaisse(donnees).montantCotisation },
+      details: { nom: donnees.nom, montantCotisation: versChampsCaisse(donnees).montantCotisation, ...detailsMensualite },
     });
     // Collecte : la date limite est l'échéance de son cycle ouvert.
     if (donnees.type === "COLLECTE") {
       await tx.cycle.updateMany({ where: { caisseId: idValide.data, statut: "OUVERT" }, data: { dateEcheance: donnees.dateLimite } });
     }
-    // Mensualité : premier mois, durée ou montant corrigés → dates du cycle et dû de chaque membre
-    // recalculés (une seule échéance par membre pour toute la durée ; ce qui est versé reste versé).
-    if (donnees.type === "MENSUALITE") {
-      const champs = versChampsCaisse(donnees);
-      const cycles = await tx.cycle.findMany({ where: { caisseId: idValide.data, statut: "OUVERT" }, select: { id: true } });
-      await tx.cycle.updateMany({ where: { id: { in: cycles.map((c) => c.id) } }, data: { dateDebut: donnees.moisDebut, dateEcheance: champs.dateLimite! } });
-      await tx.echeance.updateMany({ where: { cycleId: { in: cycles.map((c) => c.id) } }, data: { montantDu: montantDuParMembre(champs) } });
-    }
+    return null;
   });
+  if (refus) return { erreur: refus, valeurs };
   await annoncer("Caisse enregistrée ✓");
   redirect(`/caisses/${idValide.data}?vue=caisse`);
 }

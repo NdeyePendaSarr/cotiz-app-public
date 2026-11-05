@@ -3,6 +3,9 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { analyserImport, comparerAvecFiche, lignesACompleter, resumer, type PersonneExistante } from "@/lib/import/analyse";
 import { detecterColonnes, extraireLignes, lireCanal, lireTableau, lireVerse } from "@/lib/import/tableau";
+import { analyserHistoriqueCompte } from "@/lib/comptes";
+import { schemaMontant } from "@/lib/validation/montant";
+import { schemaPaiementManuel } from "@/lib/validation/paiement";
 
 // [R] = tableau Word fictif, même structure que celui de la trésorière (tests/fixtures/import/word.txt), [F] = fictif.
 const WORD = readFileSync(fileURLToPath(new URL("./fixtures/import/word.txt", import.meta.url)), "utf8");
@@ -181,9 +184,50 @@ describe("lireVerse", () => {
     ["", 0],
     ["0", 0],
     ["-", 0],
+    ["5000.00", 5000],
+    ["5 000,00", 5000],
+    ["1.250.000", 1250000],
+    ["5000.00 FCFA", 5000],
+    ["10.000.000", 10_000_000],
   ])("« %s » → %s", (texte, attendu) => expect(lireVerse(texte)).toBe(attendu));
 
-  it.each(["deux mille", "2,5", "oui"])("« %s » est illisible", (texte) => expect(lireVerse(texte)).toBeNull());
+  it.each(["deux mille", "2,5", "oui", "1.5", "12.50", "5000.000", "99999999"])("« %s » est illisible ou trop élevé", (texte) => expect(lireVerse(texte)).toBeNull());
+});
+
+describe("schemaMontant", () => {
+  const schema = schemaMontant("Indique le montant.");
+
+  it.each([
+    ["25 000", 25000],
+    ["25.000", 25000],
+    ["25000", 25000],
+    ["5000.00", 5000],
+    ["5 000,00", 5000],
+  ])("« %s » → %s", (texte, attendu) => expect(schema.parse(texte)).toBe(attendu));
+
+  it.each(["1.5", "2,5", "abc", "", "0", "10000001"])("« %s » est refusé", (texte) => expect(schema.safeParse(texte).success).toBe(false));
+});
+
+describe("schemaPaiementManuel : référence", () => {
+  const saisie = (canal: string, reference: string) => schemaPaiementManuel.parse({ canal, montant: "5000", date: "2026-10-27", heure: "15:07", personneId: "", reference, note: "" }).reference;
+
+  it("[F] Wave : l'ID de l'application donne la référence du SMS", () => {
+    expect(saisie("WAVE", "t_4vkyyabcd-12k7mox")).toBe("T4VKYYABCD12K7MOX");
+    expect(saisie("WAVE", "_-")).toBeNull();
+    expect(saisie("WAVE", "")).toBeNull();
+  });
+
+  it("[F] les autres canaux ne changent pas", () => {
+    expect(saisie("ORANGE_MONEY", "PP260415.0932.C48217")).toBe("PP260415.0932.C48217");
+    expect(saisie("CASH", "ABC")).toBeNull();
+  });
+});
+
+describe("analyserHistoriqueCompte : montant illisible", () => {
+  it("[F] un versement illisible à côté d'un retrait est signalé, pas compté comme 0", () => {
+    const { lignes } = analyserHistoriqueCompte("Date\tVersement\tRetrait\n01/10/2026\t1.5\t2 000");
+    expect(lignes[0].erreur).toBe("Montant illisible « 1.5 ».");
+  });
 });
 
 describe("[F] tableau collecte avec Cellule et Versé", () => {

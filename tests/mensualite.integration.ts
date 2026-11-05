@@ -125,5 +125,37 @@ describe("mensualité", () => {
     expect(caisse.nombreMois).toBe(10);
     expect(caisse.cycles[0].dateEcheance.toISOString()).toBe(caisse.dateLimite?.toISOString());
     expect(caisse.cycles[0].echeances.map((e) => [e.montantDu, e.allocations.reduce((s, x) => s + x.montant, 0)])).toEqual([[5_000, 2_000]]);
+    const journal = await prisma.journalAudit.findFirstOrThrow({ where: { ownerId: a.id, entite: "Caisse", entiteId: caisseId, action: "MODIFICATION" }, orderBy: { id: "desc" } });
+    expect(journal.details).toMatchObject({ avant: { nombreMois: 12, montantDu: 6_000 }, apres: { nombreMois: 10, montantDu: 5_000 } });
+  });
+
+  it("durée raccourcie sous le versé (2 000) : refusée en nommant le membre, rien ne change", async () => {
+    const modif = { type: "MENSUALITE", nom: "Mensualité cellule", montantCotisation: "500", nombreMois: "3", moisDebut };
+    const etat = await caisses.modifierCaisse(caisseId, undefined, formulaire(modif));
+    expect(etat?.erreur).toContain("Moussa Fall");
+    const caisse = await prisma.caisse.findUniqueOrThrow({ where: { id: caisseId }, include: { cycles: { include: { echeances: true } } } });
+    expect(caisse.nombreMois).toBe(10);
+    expect(caisse.cycles[0].echeances.map((e) => e.montantDu)).toEqual([5_000]);
+  });
+
+  it("nouveau dû égal au versé (4 mois × 500) : accepté ; le remettre à 10 mois aussi", async () => {
+    const champs = (nombreMois: string) => formulaire({ type: "MENSUALITE", nom: "Mensualité cellule", montantCotisation: "500", nombreMois, moisDebut });
+    await expect(caisses.modifierCaisse(caisseId, undefined, champs("4"))).rejects.toThrow(/^REDIRECT/);
+    expect((await prisma.echeance.findFirstOrThrow({ where: { cycle: { caisseId } } })).montantDu).toBe(2_000);
+    await expect(caisses.modifierCaisse(caisseId, undefined, champs("10"))).rejects.toThrow(/^REDIRECT/);
+  });
+
+  it("clôturée : montant, durée et premier mois figés ; le nom reste modifiable", async () => {
+    await prisma.cycle.updateMany({ where: { caisseId }, data: { statut: "CLOTURE" } });
+    try {
+      const avecMontant = { type: "MENSUALITE", nom: "Mensualité cellule", montantCotisation: "1000", nombreMois: "10", moisDebut };
+      expect((await caisses.modifierCaisse(caisseId, undefined, formulaire(avecMontant)))?.erreur).toContain("clôturée");
+      expect((await prisma.caisse.findUniqueOrThrow({ where: { id: caisseId } })).montantCotisation).toBe(500);
+      const avecNom = { type: "MENSUALITE", nom: "Cellule 2026", montantCotisation: "500", nombreMois: "10", moisDebut };
+      await expect(caisses.modifierCaisse(caisseId, undefined, formulaire(avecNom))).rejects.toThrow(/^REDIRECT/);
+      expect((await prisma.caisse.findUniqueOrThrow({ where: { id: caisseId } })).nom).toBe("Cellule 2026");
+    } finally {
+      await prisma.cycle.updateMany({ where: { caisseId }, data: { statut: "OUVERT" } });
+    }
   });
 });

@@ -47,6 +47,30 @@ describe("preparerCaptureSms", () => {
     expect(preparerCaptureSms(texte)).toEqual({ type: "refus", raison: "Colle d'abord un SMS." });
   });
 
+  it("[F] SMS Orange Money → gardé dans SmsNonLu, sans le solde", () => {
+    const r = preparerCaptureSms("Vous avez recu un transfert de 5000.00FCFA de 770000009 Diallo. Ref:PP260415.0932.C48217 .Votre solde actuel est 87500.00 FCFA.Merci.OFMS");
+    expect(r.type).toBe("non_lu");
+    if (r.type === "non_lu") {
+      expect(r.texteBrut).not.toContain("87500");
+      expect(r.texteBrut).toContain("PP260415.0932.C48217");
+    }
+  });
+
+  const smsDe = (montant: string, date: string) => `Vous avez recu ${montant}\nDe Awa (770000000)\n${date}\nT4VKYYABCD12K7MOX`;
+  const maintenant = new Date("2026-11-05T12:00:00Z");
+
+  it.each([
+    ["montant au-dessus du plafond", smsDe("10.000.001F", "27/10/2026 à 15h07"), "Montant au-dessus du plafond."],
+    ["montant hors des entiers de la base", smsDe("3.000.000.000F", "27/10/2026 à 15h07"), "Montant au-dessus du plafond."],
+    ["date dans le futur", smsDe("5.000F", "27/10/2036 à 15h07"), "Date dans le futur."],
+  ])("[F] valeur impossible (%s) → gardé pour vérification, aucun paiement", (_cas, texte, raison) => {
+    expect(preparerCaptureSms(texte, maintenant)).toMatchObject({ type: "non_lu", raison });
+  });
+
+  it("[F] plafond exact et minute en cours : acceptés", () => {
+    expect(preparerCaptureSms(smsDe("10.000.000F", "05/11/2026 à 12h00"), maintenant).type).toBe("paiement");
+  });
+
   it("[R] 2 SMS collés d'un coup → refus, rien n'est enregistré", () => {
     expect(preparerCaptureSms(`${SMS_FICHIER[0]}\r\n${SMS_FICHIER[1]}`)).toEqual({ type: "refus", raison: "2 SMS détectés, colle-les un par un" });
   });

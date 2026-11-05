@@ -10,13 +10,16 @@ import { aujourdhui } from "@/lib/cycles/dates";
 import { collecteDuDon, excedentPaiement } from "@/lib/dons";
 import { formaterFCFA } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
-import { verrouillerPaiement } from "@/lib/verrous";
+import { verrouillerPaiement, verrouillerPaiementDuDon } from "@/lib/verrous";
 import { schemaIdentifiant } from "@/lib/validation/caisse";
 import { lireFormulaireDon, schemaDon, type DonneesDon } from "@/lib/validation/don";
 
 // Bonnes volontés d'une collecte : dons en plus des cotisations, saisis à part ou issus de
 // l'excédent d'un paiement. Création, modification et suppression libres, toujours écrites
-// dans le journal d'audit, dans la même transaction.
+// dans le journal d'audit, dans la même transaction. Une fois l'excédent du paiement remboursé,
+// le montant de sa bonne volonté est figé : l'encaissé resterait faux.
+
+const REFUS_REMBOURSE = "L'excédent de ce paiement est déjà remboursé : le montant de cette bonne volonté ne peut plus changer.";
 
 export type EtatFormulaireDon = { erreur?: string; erreurs?: Record<string, string>; valeurs?: ReturnType<typeof lireFormulaireDon> } | undefined;
 
@@ -68,6 +71,7 @@ export async function modifierDon(id: string, _etat: EtatFormulaireDon, formData
   if ("etat" in lu) return lu.etat;
 
   const resultat = await prisma.$transaction(async (tx) => {
+    await verrouillerPaiementDuDon(tx, ownerId, idValide.data);
     const avant = await tx.don.findFirst({
       where: { id: idValide.data, ownerId },
       select: {
@@ -78,13 +82,15 @@ export async function modifierDon(id: string, _etat: EtatFormulaireDon, formData
         remisPar: true,
         canal: true,
         note: true,
-        paiement: { select: { montant: true, allocations: { select: { montant: true } } } },
+        paiement: { select: { montant: true, rembourseLe: true, allocations: { select: { montant: true } }, mouvementCompte: { select: { montant: true } } } },
       },
     });
     if (!avant) return { erreur: "Bonne volonté introuvable." };
     // Issue d'un paiement : jamais plus que ce que le paiement n'a pas déjà donné aux cotisations.
     if (avant.paiement) {
-      const disponible = excedentPaiement(avant.paiement.montant, avant.paiement.allocations);
+      // Excédent remboursé : le reste a quitté la caisse, le montant de la bonne volonté ne bouge plus.
+      if (avant.paiement.rembourseLe && lu.donnees.montant !== avant.montant) return { erreur: REFUS_REMBOURSE };
+      const disponible = excedentPaiement(avant.paiement.montant, avant.paiement.allocations, null, avant.paiement.mouvementCompte);
       if (lu.donnees.montant > disponible) return { erreurMontant: disponible };
     }
     await tx.don.updateMany({ where: { id: idValide.data, ownerId }, data: lu.donnees });
@@ -107,8 +113,10 @@ export async function supprimerDon(formData: FormData) {
   if (!id.success) return;
 
   const caisseId = await prisma.$transaction(async (tx) => {
-    const don = await tx.don.findFirst({ where: { id: id.data, ownerId }, select: { caisseId: true, date: true, montant: true, donateur: true, remisPar: true, canal: true, note: true, paiementId: true } });
+    await verrouillerPaiementDuDon(tx, ownerId, id.data);
+    const don = await tx.don.findFirst({ where: { id: id.data, ownerId }, select: { caisseId: true, date: true, montant: true, donateur: true, remisPar: true, canal: true, note: true, paiementId: true, paiement: { select: { rembourseLe: true } } } });
     if (!don) return null;
+    if (don.paiement?.rembourseLe) return { refus: true as const };
     await tx.don.deleteMany({ where: { id: id.data, ownerId } });
     const supprime = { date: don.date, montant: don.montant, donateur: don.donateur, remisPar: don.remisPar, canal: don.canal, note: don.note };
     // Issu d'un paiement : l'excédent redevient « à rembourser ».
@@ -116,6 +124,11 @@ export async function supprimerDon(formData: FormData) {
     return don.caisseId;
   });
   if (!caisseId) return;
+  if (typeof caisseId !== "string") {
+    await annoncer(REFUS_REMBOURSE);
+    refresh();
+    return;
+  }
   await annoncer("Bonne volonté supprimée");
   refresh();
   redirect(vueDons(caisseId));

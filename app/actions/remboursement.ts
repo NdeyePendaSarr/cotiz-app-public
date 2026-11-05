@@ -40,8 +40,8 @@ const schemaDoublons = z.array(schemaIdentifiant).min(1).max(100);
  * Doublons de l'import : un SMS validé pour une personne déjà payée par la colonne « Versé » d'une
  * liste importée (le même argent compté deux fois). Le paiement, réparti sur aucune échéance, est
  * remis hors des comptes (« ignoré », réversible). Revérifié ici pour chacun, dans sa transaction :
- * à toi, rapproché, sans allocation, sans bonne volonté, pas remboursé, pas lui-même une reprise,
- * et sa personne a bien un versé repris sur un cycle ouvert.
+ * à toi, rapproché, sans allocation, sans bonne volonté, sans versement sur un compte, pas
+ * remboursé, pas lui-même une reprise, et sa personne a bien un versé repris sur un cycle ouvert.
  */
 export async function ignorerDoublons(formData: FormData) {
   const { id: ownerId } = await exigerUtilisatrice();
@@ -51,6 +51,7 @@ export async function ignorerDoublons(formData: FormData) {
   let ignores = 0;
   for (const id of new Set(ids.data)) {
     const fait = await prisma.$transaction(async (tx) => {
+      if (!(await verrouillerPaiement(tx, ownerId, id, ["RAPPROCHE"]))) return false;
       const paiement = await tx.paiement.findFirst({
         where: {
           id,
@@ -61,6 +62,8 @@ export async function ignorerDoublons(formData: FormData) {
           origine: "CAPTURE",
           allocations: { none: {} },
           don: { is: null },
+          // Versé sur un compte gardé : l'argent y reste compté, ce n'est pas un doublon.
+          mouvementCompte: { is: null },
         },
         select: { id: true, personneId: true },
       });

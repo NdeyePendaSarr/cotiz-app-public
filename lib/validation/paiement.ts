@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normaliserReferenceWave } from "@/lib/capture/modele-wave";
 import { Canal } from "@/lib/generated/prisma/enums";
 import { schemaMontant } from "@/lib/validation/montant";
 
@@ -26,8 +27,9 @@ export const schemaPaiementManuel = z
     canal,
     // Heure de Dakar = UTC.
     dateReception: new Date(`${date}T${heure}:00.000Z`),
-    // Pas de référence pour le cash ; références Wave en majuscules, comme dans les SMS.
-    reference: canal === Canal.CASH ? null : canal === Canal.WAVE ? (reference?.toUpperCase() ?? null) : reference,
+    // Pas de référence pour le cash ; références Wave sous la forme des SMS (l'ID de l'application
+    // « T_QWE…-IOP… » est la même transaction que « TQWE…IOP… »).
+    reference: canal === Canal.CASH ? null : canal === Canal.WAVE ? normaliserReferenceWave(reference ?? "") || null : reference,
   }));
 
 export type PaiementManuel = z.infer<typeof schemaPaiementManuel>;

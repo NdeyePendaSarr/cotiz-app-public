@@ -113,8 +113,11 @@ export function analyserHistoriqueCompte(texte: string): AnalyseCompte {
     const date = lireDate(val("date"));
     let sens: Sens | null = null;
     let montant: number | null = null;
-    const enVersement = lireVerse(val("versement")) ?? 0;
-    const enRetrait = lireVerse(val("retrait")) ?? 0;
+    const versementLu = lireVerse(val("versement"));
+    const retraitLu = lireVerse(val("retrait"));
+    // Illisible (« 1.5 ») : signalé plus bas, jamais compté comme 0 sans le dire.
+    const enVersement = versementLu ?? 0;
+    const enRetrait = retraitLu ?? 0;
     if (enVersement > 0 && enRetrait === 0) [sens, montant] = ["VERSEMENT", enVersement];
     else if (enRetrait > 0 && enVersement === 0) [sens, montant] = ["RETRAIT", enRetrait];
     else if (roles.includes("montant")) {
@@ -128,6 +131,7 @@ export function analyserHistoriqueCompte(texte: string): AnalyseCompte {
     let erreur: string | null = null;
     if (!enTete) erreur = "En-tête introuvable : la première ligne doit nommer les colonnes (Date, Versement, Retrait…).";
     else if (!date) erreur = `Date illisible « ${val("date")} ».`;
+    else if (versementLu === null || retraitLu === null) erreur = `Montant illisible « ${versementLu === null ? val("versement") : val("retrait")} ».`;
     else if (enVersement > 0 && enRetrait > 0) erreur = "Versement et retrait sur la même ligne : sépare-les.";
     else if (!montant) erreur = "Montant illisible ou absent.";
     else if (!sens) erreur = "Sens illisible : versement ou retrait ?";

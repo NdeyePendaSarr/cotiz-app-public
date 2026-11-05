@@ -232,6 +232,32 @@ describe("retirerLigneSolde", () => {
     expect(sansSolde).toContain("T4VKYYABCD12K7MOX");
   });
 
+  it.each([
+    ["Orange Money au format du cahier", "Vous avez recu un transfert de 5000.00FCFA de 770000009 Diallo. Ref:PP260415.0932.C48217 .Votre solde actuel est 87500.00 FCFA.Merci.OFMS", "87500", "PP260415.0932.C48217"],
+    ["Wave collé sur une seule ligne", "Vous avez recu 5.000F De Awa (770000000) le 27/10/2026 a 15h07 Nouveau solde: 9.500F T4VKYYABCD12K7MOX", "9.500", "T4VKYYABCD12K7MOX"],
+    ["valeur à la ligne suivante", "Vous avez recu 5.000F\nNouveau solde:\n9.500F\nT4VKYYABCD12K7MOX", "9.500", "T4VKYYABCD12K7MOX"],
+    ["« Votre nouveau solde »", "Vous avez recu 5.000F\nVotre nouveau solde: 12 500 FCFA\nT4VKYYABCD12K7MOX", "12 500", "T4VKYYABCD12K7MOX"],
+    ["« Solde : » seul", "Vous avez recu 5.000F\nSolde : 9.500F\nT4VKYYABCD12K7MOX", "9.500", "T4VKYYABCD12K7MOX"],
+    ["caractère invisible dans le mot", "Vous avez recu 5.000F\nNouveau sol​de: 9.500F\nT4VKYYABCD12K7MOX", "9.500", "T4VKYYABCD12K7MOX"],
+  ])("[F] solde retiré où qu'il soit : %s", (_cas, texte, solde, garde) => {
+    const sansSolde = retirerLigneSolde(texte);
+    expect(sansSolde).not.toContain(solde);
+    expect(sansSolde.toLowerCase()).not.toContain("solde");
+    expect(sansSolde).toContain(garde);
+  });
+
+  it("[F] Wave d'un bloc : la référence reste lisible après le retrait du solde", () => {
+    const r = parserSmsWave("Vous avez recu 5.000F De Awa (770000000) le 27/10/2026 a 15h07 Nouveau solde: 9.500F T4VKYYABCD12K7MOX");
+    expect(r).toMatchObject({ ok: true, montant: 5000, reference: "T4VKYYABCD12K7MOX" });
+  });
+
+  it.each([
+    ["une date", "Nouveau solde:\n27/10/2026 à 15h07", "27/10/2026 à 15h07"],
+    ["une référence qui commence par un chiffre", "Nouveau solde:\n4VKYYABCD12K7MOXA", "4VKYYABCD12K7MOXA"],
+  ])("[F] libellé sans valeur : %s à la ligne suivante n'est pas prise pour un solde", (_cas, texte, garde) => {
+    expect(retirerLigneSolde(texte).trim()).toBe(garde);
+  });
+
   it("[F] un texte sans solde reste identique", () => {
     expect(retirerLigneSolde(FICTIFS.messageWhatsApp)).toBe(FICTIFS.messageWhatsApp);
   });

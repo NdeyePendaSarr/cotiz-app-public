@@ -51,6 +51,26 @@ export async function verrouillerEcheancesDePersonne(tx: Tx, ownerId: string, pe
     FOR UPDATE OF e`;
 }
 
+/** Verrouille le paiement d'origine d'une bonne volonté, s'il y en a un, avant de relire son excédent. */
+export async function verrouillerPaiementDuDon(tx: Tx, ownerId: string, donId: string) {
+  await tx.$queryRaw`
+    SELECT p.id FROM paiements p
+    JOIN dons d ON d.paiement_id = p.id
+    WHERE d.id = ${donId}::uuid AND d.owner_id = ${ownerId}::uuid AND p.owner_id = ${ownerId}::uuid
+    FOR UPDATE OF p`;
+}
+
+/** Verrouille les échéances d'une caisse de l'utilisatrice avant d'en recalculer le dû (mensualité). */
+export async function verrouillerEcheancesDeCaisse(tx: Tx, ownerId: string, caisseId: string) {
+  await tx.$queryRaw`
+    SELECT e.id FROM echeances e
+    JOIN membres_caisse m ON m.id = e.membre_caisse_id
+    JOIN caisses c ON c.id = m.caisse_id
+    WHERE c.id = ${caisseId}::uuid AND c.owner_id = ${ownerId}::uuid
+    ORDER BY e.id
+    FOR UPDATE OF e`;
+}
+
 /** Verrouille une échéance (dans une caisse de l'utilisatrice) avant de compter ce qui y est déjà affecté. */
 export async function verrouillerEcheance(tx: Tx, ownerId: string, echeanceId: string) {
   await tx.$queryRaw`

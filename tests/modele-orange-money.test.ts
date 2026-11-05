@@ -9,12 +9,12 @@ describe("modèle Orange Money (date depuis l'application, sans SMS)", () => {
     expect(modele.split("\n")[1]).toBe("Date : JJ/10/2026 à HHhMM");
     expect(modele.split("\n")[2]).toBe("Référence : PP");
     expect(modele).toContain("Khady Diallo (77 000 09 79)");
-    expect(lireModeleOrangeMoney(modele)).toEqual({ dateReception: null, reference: null });
+    expect(lireModeleOrangeMoney(modele)).toEqual({ montant: 5_000, dateReception: null, reference: null });
   });
 
   it("complété comme dans l'application (heure « 11:52 » ou « 11h52 »)", () => {
     const rempli = ["Orange Money · 5 000 FCFA de Khady Diallo", "Date : 30/10/2026 à 11:52", "Référence : pp260415.0932.c48217"].join("\n");
-    expect(lireModeleOrangeMoney(rempli)).toEqual({ dateReception: new Date("2026-10-30T11:52:00Z"), reference: "PP260415.0932.C48217" });
+    expect(lireModeleOrangeMoney(rempli)).toEqual({ montant: 5_000, dateReception: new Date("2026-10-30T11:52:00Z"), reference: "PP260415.0932.C48217" });
     expect(lireModeleOrangeMoney(rempli.replace("11:52", "11h52")).dateReception).toEqual(new Date("2026-10-30T11:52:00Z"));
   });
 

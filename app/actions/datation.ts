@@ -212,11 +212,12 @@ export async function daterRepriseDepuisModeleOrangeMoney(repriseId: string, _et
   if (!id.success) return { erreur: "Versé introuvable." };
   const texte = formData.get("texte");
   if (typeof texte !== "string") return { erreur: "Complète d'abord le modèle." };
-  const { dateReception, reference } = lireModeleOrangeMoney(texte);
+  const { montant, dateReception, reference } = lireModeleOrangeMoney(texte);
+  if (montant === null) return { erreur: "Garde la première ligne du modèle : elle porte le montant du versé." };
   if (!dateReception) return { erreur: "Remplace « JJ » et « HHhMM » par la date et l'heure affichées dans Orange Money (ex. 31/10/2026 à 01h38)." };
   if (!reference) return { erreur: "Recopie la référence après « Référence : » (elle commence par PP)." };
   if (dateReception > new Date() || dateReception < ajouterJours(aujourdhui(), -366)) return { erreur: "Date impossible : ni dans le futur, ni il y a plus d'un an." };
-  return daterParReference(ownerId, id.data, { canal: "ORANGE_MONEY", dateReception, reference, source: "APPLICATION" }, formData.get("rattacher") === "1");
+  return daterParReference(ownerId, id.data, { canal: "ORANGE_MONEY", montant, dateReception, reference, source: "APPLICATION" }, formData.get("rattacher") === "1");
 }
 
 // Une date saisie : AAAA-MM-JJ, pas dans le futur, pas plus d'un an en arrière.
@@ -229,8 +230,8 @@ const schemaDateSaisie = z
 /**
  * Datation à la main d'un versé repris (page « Dater les versés ») : avec le SMS ignoré choisi
  * par la trésorière (même règle que le rattrapage automatique : seule la date change, le SMS est
- * marqué pour ne jamais revenir), ou avec une date saisie quand il n'y a pas de SMS (espèces,
- * Orange Money). Tout est revérifié dans la transaction ; journal d'audit.
+ * marqué pour ne jamais revenir, montant identique exigé), ou avec une date saisie quand il n'y a
+ * pas de SMS (espèces, Orange Money). Tout est revérifié dans la transaction ; journal d'audit.
  */
 export async function daterRepriseALaMain(repriseId: string, formData: FormData) {
   const { id: ownerId } = await exigerUtilisatrice();
@@ -243,30 +244,33 @@ export async function daterRepriseALaMain(repriseId: string, formData: FormData)
     return;
   }
 
-  const fait = await prisma.$transaction(async (tx) => {
+  const DEJA_TRAITE = "Ce versé ou ce SMS a déjà été traité.";
+  const message = await prisma.$transaction(async (tx) => {
     // Verrous : le versé, puis le SMS choisi (deux datations simultanées avec le même SMS : une seule passe).
-    if (!(await verrouillerPaiement(tx, ownerId, id.data, ["RAPPROCHE"]))) return false;
+    if (!(await verrouillerPaiement(tx, ownerId, id.data, ["RAPPROCHE"]))) return DEJA_TRAITE;
     if (smsId.success) await verrouillerPaiements(tx, ownerId, [smsId.data]);
-    const reprise = await tx.paiement.findFirst({ where: { id: id.data, ownerId, ...REPRISE_NON_DATEE, statut: "RAPPROCHE" }, select: { id: true } });
-    if (!reprise) return false;
+    const reprise = await tx.paiement.findFirst({ where: { id: id.data, ownerId, ...REPRISE_NON_DATEE, statut: "RAPPROCHE" }, select: { id: true, montant: true } });
+    if (!reprise) return DEJA_TRAITE;
     if (smsId.success) {
       const sms = await tx.paiement.findFirst({
         where: { id: smsId.data, ownerId, ...CAPTURE_IGNOREE_LIBRE },
-        select: { id: true, dateReception: true },
+        select: { id: true, dateReception: true, montant: true },
       });
-      if (!sms) return false;
+      if (!sms) return DEJA_TRAITE;
+      // Un SMS d'un autre montant n'est pas le même argent : il sortirait des comptes pour rien.
+      if (sms.montant !== reprise.montant) return `Le SMS est de ${formaterFCFA(sms.montant)}, le versé de ${formaterFCFA(reprise.montant)} : ce n'est pas le même argent.`;
       await tx.paiement.update({ where: { id: reprise.id }, data: { dateReception: sms.dateReception, datation: "PAR_SMS" } });
       await tx.paiement.update({ where: { id: sms.id }, data: { dateRepriseId: reprise.id } });
       await journaliser(tx, { ownerId, entite: "Paiement", entiteId: reprise.id, action: "MODIFICATION", details: { dateReception: sms.dateReception.toISOString(), dateeParSms: [sms.id], aLaMain: true } });
       await journaliser(tx, { ownerId, entite: "Paiement", entiteId: sms.id, action: "MODIFICATION", details: { dateReporteeSur: reprise.id } });
-      return true;
+      return "Versé daté ✓";
     }
-    if (!date.success) return false;
+    if (!date.success) return DEJA_TRAITE;
     await tx.paiement.update({ where: { id: reprise.id }, data: { dateReception: date.data, datation: "A_LA_MAIN" } });
     await journaliser(tx, { ownerId, entite: "Paiement", entiteId: reprise.id, action: "MODIFICATION", details: { dateReception: date.data.toISOString(), aLaMain: true } });
-    return true;
+    return "Versé daté ✓";
   });
 
-  await annoncer(fait ? "Versé daté ✓" : "Ce versé ou ce SMS a déjà été traité.");
+  await annoncer(message);
   refresh();
 }

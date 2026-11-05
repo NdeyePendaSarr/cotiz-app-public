@@ -1,7 +1,7 @@
 // Parser des SMS Wave de réception. Contrat : CAHIER_DES_CHARGES.md, section « Format SMS Wave ».
 //
 // Principes :
-// 1. La ligne « Nouveau solde » est retirée en tout premier : le solde n'est jamais lu.
+// 1. Le solde (mention et valeur, où qu'il soit) est retiré en tout premier : il n'est jamais lu.
 // 2. Le texte est normalisé (fins de ligne, espaces spéciaux, caractères invisibles).
 // 3. Chaque champ est cherché séparément : s'il en manque un, les autres sont quand même lus.
 // 4. Aucune exception : tout cas imprévu donne { ok: false, raison }.
@@ -30,11 +30,30 @@ const ESPACES_SPECIAUX = /[   \t]/g;
 // Début de la ligne de réception : « Vous avez recu » (sans cédille chez Wave) ou « reçu ».
 const DEBUT_RECEPTION = /^vous avez re[cç]u\b/gim;
 
-/** Retire la ligne « Nouveau solde » avant tout traitement ou stockage. */
+// Mention du solde et sa valeur, où qu'elles soient : « Nouveau solde: 9.500F », « Votre solde actuel
+// est 87500.00 FCFA » (Orange Money), SMS collé sur une seule ligne, valeur renvoyée à la ligne
+// suivante. La valeur doit se terminer là (ni chiffre, ni lettre, ni « / ») : une date ou une
+// référence de la ligne suivante n'est jamais prise pour un solde.
+// Même motif dans la migration 20261105120000_solde_et_references (purge de l'existant).
+const MENTION_SOLDE =
+  /\b(?:(?:votre|nouveau)\s+)*solde\b[^\d\r\n]{0,40}(?:\r?\n[^\S\r\n]*)?\d(?:[\d.,]|[^\S\r\n](?=\d))*(?:[^\S\r\n]*(?:FCFA|F\s?CFA|XOF|F))?(?![0-9A-Za-z/])/gi;
+// Ligne qui ne porte que le libellé, sans valeur lisible.
+const LIBELLE_SOLDE = /^[^\S\r\n]*nouveau\s+solde[^\r\n]*(?:\r?\n|$)/gim;
+
+/** Retire le solde (mention et valeur) avant tout traitement ou stockage, où qu'il soit dans le texte. */
 export function retirerLigneSolde(texte: string): string {
   if (typeof texte !== "string") return "";
-  // Ligne entière, fin de ligne comprise ; tolère espaces (même insécables) et casse.
-  return texte.replace(/^(?:[^\S\r\n]|[​-‍﻿])*nouveau\s+solde[^\r\n]*(?:\r?\n|$)/gim, "");
+  const propre = texte.replace(INVISIBLES, "");
+  if (!/\bsolde\b/i.test(propre)) return texte;
+  return propre
+    .replace(MENTION_SOLDE, (mention, position: number, tout: string) => {
+      // Du texte suit sur la même ligne (SMS collé d'un bloc) : le renvoyer à la ligne, pour qu'une
+      // référence reste seule sur la sienne.
+      const suite = tout.slice(position + mention.length).split(/\r?\n/, 1)[0];
+      return suite.trim() ? "\n" : "";
+    })
+    .replace(LIBELLE_SOLDE, "")
+    .replace(/(\r?\n)(?:[^\S\r\n]*\r?\n)+/g, "$1");
 }
 
 /** Lit un SMS Wave de réception. Ne lève jamais d'exception. */
