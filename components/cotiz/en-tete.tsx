@@ -41,6 +41,7 @@ export function EnTete({
   leger = false,
   aCote,
   action,
+  actionMobile,
 }: {
   titre: React.ReactNode;
   /** Lien de retour affiché au-dessus du titre. */
@@ -59,6 +60,8 @@ export function EnTete({
   aCote?: React.ReactNode;
   /** Ordinateur : élément à droite du titre (ex. « Changer de caisse »). */
   action?: React.ReactNode;
+  /** Téléphone : version compacte de l'action, à droite du titre (icône seule). */
+  actionMobile?: React.ReactNode;
 }) {
   const avecChiffres = !leger && chiffres !== undefined && chiffres.length > 0;
   return (
@@ -98,10 +101,11 @@ export function EnTete({
           <div className="flex items-start justify-between gap-4">
             <h1 className={cn("font-semibold tracking-tight lg:text-3xl", montant !== undefined ? "text-lg" : "text-2xl")}>{titre}</h1>
             {action && <div className="hidden shrink-0 lg:block">{action}</div>}
+            {actionMobile && <div className="-mt-1 shrink-0 lg:hidden">{actionMobile}</div>}
           </div>
           {surtitre && <p className={cn("text-sm lg:text-base", leger ? "text-muted-foreground" : "text-nuit-doux")}>{surtitre}</p>}
           {montant !== undefined && (
-            <p className={cn("font-heading text-4xl font-bold tracking-tight lg:mt-2 lg:text-5xl", avecChiffres && "lg:hidden")}>{montant}</p>
+            <p className={cn("font-heading text-3xl font-bold tracking-tight lg:mt-2 lg:text-5xl", avecChiffres && "lg:hidden")}>{montant}</p>
           )}
           {children}
         </div>

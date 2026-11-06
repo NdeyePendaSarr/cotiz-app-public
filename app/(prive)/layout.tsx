@@ -32,7 +32,7 @@ export default function LayoutPrive({ children }: { children: React.ReactNode })
       </header>
       {/* Marge basse : la barre d'onglets fixe ne doit pas cacher la fin de la page. */}
       <main className="flex flex-1 flex-col overflow-x-clip px-4 pt-4 pb-[calc(7rem+env(safe-area-inset-bottom))] lg:px-10 lg:pt-8 lg:pb-12">
-        <div className="colonne-privee mx-auto flex w-full max-w-md flex-1 flex-col gap-5 lg:max-w-7xl lg:gap-6">{children}</div>
+        <div className="colonne-privee mx-auto flex w-full max-w-md flex-1 flex-col gap-7 lg:max-w-7xl lg:gap-6">{children}</div>
       </main>
       {/* usePathname() est une donnée de la requête : sous <Suspense> avec les Cache Components. */}
       {/* Messages de confirmation après une action (lib/annonce.ts). */}

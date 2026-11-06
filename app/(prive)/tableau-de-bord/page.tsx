@@ -86,8 +86,9 @@ async function Accueil() {
             total={Math.max(attendu, recu)}
             libelle={`${pourcentage} % de l'attendu réparti sur les cycles en cours`}
             taille={128}
+            className="max-lg:size-24!"
           >
-            <span className="font-heading text-2xl font-bold">{pourcentage} %</span>
+            <span className="font-heading text-xl font-bold lg:text-2xl">{pourcentage} %</span>
             <span className="text-xs text-nuit-doux">réparti</span>
           </Anneau>
           <dl className="flex min-w-0 flex-col gap-3">
@@ -151,8 +152,8 @@ async function Accueil() {
 
       <dl data-pleine-largeur className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl bg-border ring-1 ring-border lg:grid-cols-3">
         {[
-          { libelle: "Arrivé ces 7 jours", valeur: formaterFCFA(tendances.recu.actuelle), tendance: tendances.recu },
-          { libelle: "Moyenne par jour (7 j)", valeur: formaterFCFA(tendances.moyenne.actuelle), tendance: tendances.moyenne },
+          { libelle: "Arrivé (7 j)", valeur: formaterFCFA(tendances.recu.actuelle), tendance: tendances.recu },
+          { libelle: "Moyenne / jour", valeur: formaterFCFA(tendances.moyenne.actuelle), tendance: tendances.moyenne },
           { libelle: "Cycles en cours", valeur: String(resumes.length), detail: `${collectes.length} collecte${collectes.length > 1 ? "s" : ""}` },
         ].map((c) => (
           <div key={c.libelle} className="bg-card px-4 py-3 last:col-span-2 lg:last:col-span-1">
@@ -313,7 +314,8 @@ function Evolution({ tendance }: { tendance: Tendance }) {
     <dd className={cn("flex items-center gap-0.5 text-xs font-medium", hausse ? "text-paye" : "text-retard")}>
       <Fleche aria-hidden className="size-3.5" />
       {hausse ? "+" : "−"}
-      {formaterFCFA(Math.abs(tendance.ecart))} vs semaine d&apos;avant
+      {formaterFCFA(Math.abs(tendance.ecart))}
+      <span className="sr-only lg:not-sr-only">&nbsp;vs semaine d&apos;avant</span>
     </dd>
   );
 }

@@ -104,14 +104,14 @@ async function DetailCaisse({
   const suivi = donnees ? calculerSuivi(lignesSuivi, donnees.cycle.dateEcheance, jour, donnees.totalArrieres) : null;
   const grilleMois = mensualite && donnees && caisse.moisDebut && caisse.nombreMois ? construireGrilleMois(donnees.lignes, caisse.montantCotisation, caisse.moisDebut, caisse.nombreMois, jour) : null;
   const numeroMois = mensualite && caisse.moisDebut && caisse.nombreMois ? moisEnCours(caisse.moisDebut, caisse.nombreMois, jour) : 0;
-  const vues: { vue: Vue; libelle: string }[] = [
-    { vue: "membres", libelle: suivi ? `Membres (${suivi.actifs.length})` : "Membres" },
-    ...(grilleMois ? [{ vue: "mois" as const, libelle: "Mois par mois" }] : []),
+  const vues: { vue: Vue; libelle: string; court?: string; nombre?: number }[] = [
+    { vue: "membres", libelle: "Membres", nombre: suivi?.actifs.length },
+    ...(grilleMois ? [{ vue: "mois" as const, libelle: "Mois par mois", court: "Mois" }] : []),
     ...(caisse.type === "TONTINE" && nbCycles > 0 ? [{ vue: "historique" as const, libelle: "Historique" }] : []),
     ...(sorties
       ? [
-          { vue: "dons" as const, libelle: dons.length > 0 ? `Bonnes volontés (${dons.length})` : "Bonnes volontés" },
-          { vue: "depenses" as const, libelle: depenses.length > 0 ? `Dépenses (${depenses.length})` : "Dépenses" },
+          { vue: "dons" as const, libelle: "Bonnes volontés", court: "Dons", nombre: dons.length || undefined },
+          { vue: "depenses" as const, libelle: "Dépenses", nombre: depenses.length || undefined },
         ]
       : []),
     { vue: "caisse", libelle: "Caisse" },
@@ -142,10 +142,10 @@ async function DetailCaisse({
       : caisse.dateLimite && `avant le ${formaterDate(caisse.dateLimite)}`;
 
   // Anneau des statuts (lot 3) : sous le montant sur téléphone, à gauche des chiffres sur ordinateur.
-  const anneauStatuts = suivi && (
+  const anneauStatuts = (taille = 96) => suivi && (
     <div className="flex items-center gap-4">
       <Anneau
-        taille={96}
+        taille={taille}
         epaisseur={16}
         libelle={`${suivi.totaux.payes} payés, ${suivi.totaux.partiels} partiels, ${suivi.totaux.enAttente} en attente`}
         segments={[
@@ -154,7 +154,7 @@ async function DetailCaisse({
           { libelle: "En attente", valeur: suivi.totaux.enAttente, trait: "stroke-anneau-attente" },
         ]}
       >
-        <span className="font-heading text-lg leading-none font-bold">
+        <span className={cn("font-heading leading-none font-bold", taille < 96 ? "text-sm" : "text-lg")}>
           {suivi.totaux.payes}/{suivi.actifs.length}
         </span>
         <span className="text-xs text-nuit-doux">à jour</span>
@@ -181,12 +181,14 @@ async function DetailCaisse({
       : null;
   const pourcentageRecu = suivi && suivi.totaux.attendu > 0 ? Math.round((suivi.totaux.recu / suivi.totaux.attendu) * 100) : 0;
   const selecteur = caisses.length > 1 && <SelecteurCaisse caisseId={caisse.id} caisses={caisses} />;
+  const selecteurCompact = caisses.length > 1 && <SelecteurCaisse caisseId={caisse.id} caisses={caisses} compact />;
 
   return (
     <>
       <EnTete
-        aCote={anneauStatuts}
+        aCote={anneauStatuts()}
         action={selecteur}
+        actionMobile={selecteurCompact}
         retour={RETOUR}
         titre={caisse.nom}
         surtitre={
@@ -231,14 +233,7 @@ async function DetailCaisse({
             </p>
             {/* Ordinateur : la part reçue est écrite sous « Reçu ». Collecte ouverte : la jauge de rythme la montre déjà. */}
             <Progression valeur={suivi.totaux.recu} total={suivi.totaux.attendu} libelle="Part reçue sur ce cycle" className={rythme ? "hidden" : "lg:hidden"} />
-            <div className="mt-4 lg:hidden">{anneauStatuts}</div>
-            {bilan && bilan.dons > 0 && <p className="mt-3 text-sm font-semibold lg:hidden">Bonnes volontés : {formaterFCFA(bilan.dons)}</p>}
-            {bilan && (bilan.depense > 0 || bilan.dons > 0) && (
-              <p className={cn("mt-3 text-sm font-semibold lg:hidden", bilan.depassement &&"rounded-xl bg-primary-foreground px-3 py-1.5 text-retard")}>
-                Restant en caisse : {formaterFCFA(bilan.restant)}
-                {bilan.depassement && " (dépassement)"}
-              </p>
-            )}
+            <div className="mt-3 lg:hidden">{anneauStatuts(88)}</div>
           </>
         ) : (
           <p className="text-sm text-nuit-doux">par membre{echeance ? `, ${echeance}` : ""}</p>
@@ -248,24 +243,40 @@ async function DetailCaisse({
             <JaugeRythme rythme={rythme} />
           </div>
         )}
-        {selecteur && <div className="lg:hidden">{selecteur}</div>}
       </EnTete>
+
+      {/* Téléphone : l'argent de la collecte sur une ligne, sous le bandeau (sur ordinateur, il est dans le bandeau). */}
+      {suivi && bilan && (bilan.depense > 0 || bilan.dons > 0) && (
+        <p className={cn("-mt-2 text-sm text-muted-foreground lg:hidden", bilan.depassement && "font-semibold text-retard")}>
+          Restant en caisse <span className="font-semibold text-foreground">{formaterFCFA(bilan.restant)}</span>
+          {bilan.depassement && " (dépassement)"}
+          {bilan.dons > 0 && ` · dons ${formaterFCFA(bilan.dons)}`}
+        </p>
+      )}
 
       {/* Onglets (audit, lot 1) : la liste des membres ne repousse plus dépenses et réglages tout en bas. */}
       <nav aria-label="Sections de la caisse" data-pleine-largeur className="sticky top-0 z-[5] -mx-4 bg-background/95 px-4 backdrop-blur lg:mx-0 lg:px-0">
-        <ul className="flex gap-1 border-b border-border">
+        <ul className="flex overflow-x-auto border-b border-border [scrollbar-width:none]">
           {vues.map((v) => (
-            <li key={v.vue} className="flex-1">
+            <li key={v.vue} className="shrink-0 lg:flex-1">
               <Link
                 href={v.vue === "membres" ? `/caisses/${caisse.id}` : `/caisses/${caisse.id}?vue=${v.vue}`}
                 scroll={false}
                 aria-current={vue === v.vue ? "page" : undefined}
                 className={cn(
-                  "-mb-px flex h-12 items-center justify-center border-b-2 text-sm font-bold",
+                  "-mb-px flex h-12 items-center justify-center gap-1.5 border-b-2 px-2.5 text-sm font-bold whitespace-nowrap lg:px-3",
                   vue === v.vue ? "border-primary text-primary" : "border-transparent text-muted-foreground",
                 )}
               >
-                {v.libelle}
+                {v.court ? (
+                  <>
+                    <span className="lg:hidden">{v.court}</span>
+                    <span className="hidden lg:inline">{v.libelle}</span>
+                  </>
+                ) : (
+                  v.libelle
+                )}
+                {v.nombre !== undefined && <span className="font-medium opacity-70">{v.nombre}</span>}
               </Link>
             </li>
           ))}

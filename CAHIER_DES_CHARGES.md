@@ -576,3 +576,4 @@ Tu travailles avec une développeuse qui doit pouvoir expliquer chaque choix en 
   - **Focus clavier** : contour or sur les fonds nuit (barre latérale, bandeaux), où le teal était invisible.
   - **Titres de section** en `text-lg` ; `text-xs` (13 px) au lieu de `text-[13px]`.
   - Reste à décider : onglets internes pour la page d'une caisse.
+- **Mobile aéré (06/11/2026, demande de la trésorière)** : sur téléphone seulement, bandeau compact (montant un cran plus petit, anneau plus petit, « Changer de caisse » en icône à côté du titre), restant et dons d'une collecte sur une ligne sous le bandeau, onglets sur une ligne (libellés courts, nombre à part, défilement horizontal si besoin), cases de chiffres de l'accueil en libellés courts, plus d'espace entre les sections qu'entre les cartes. Rien en dessous de 13 px. L'ordinateur ne change pas.
