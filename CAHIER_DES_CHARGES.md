@@ -569,3 +569,10 @@ Tu travailles avec une développeuse qui doit pouvoir expliquer chaque choix en 
   - **Cas rares** : SMS non lu traité deux fois, historique d'un compte envoyé deux fois, versé repris annulé puis réimporté, SMS d'une somme rattaché à un autre versé.
   - **Finitions** : boutons d'envoi avec état d'attente (`BoutonEnvoi`), textes de 13 px minimum (barre du bas à largeur variable pour tenir à 320 px, grilles agrandies), menu de l'import à 16 px pour éviter le zoom de l'iPhone, code mort retiré.
 - **Corriger le canal d'un paiement (06/11/2026)** : sur la page d'un paiement, « Corriger le canal » (Wave, Orange Money, espèces) pour un canal déclaré par la trésorière (versé repris d'une liste, saisie manuelle), même si sa caisse est terminée. Refusé quand le canal est prouvé : SMS Wave collé, versé daté par un SMS, référence de transaction. La bonne volonté et le versement sur un compte issus du paiement suivent ; journal d'audit pour chacun. Accès : fiche de la personne, « Derniers paiements ».
+- **Formulaires neufs à chaque visite (06/11/2026)** : avec les Cache Components, Next garde une page quittée et la restaure telle quelle. L'import d'une liste, l'historique d'un compte, le collage de SMS et la saisie manuelle repartent donc vides à chaque visite par un lien (`NeufAChaqueVisite`, clé `bfcacheId`) ; le bouton retour retrouve toujours l'aperçu.
+- **Critique d'interface (06/11/2026)** :
+  - **Accueil** : « À faire » juste sous le bandeau, avant les chiffres. « Réparti sur les cycles » (affecté aux échéances) et « Arrivé ces 7 jours » (reçu, rapproché ou non) remplacent les deux « reçu » ; la case « Reste à recevoir », qui répétait le bandeau, est retirée. Barres de progression des cycles en or, comme le bandeau.
+  - **Contrastes** (mode clair) : pastilles Payé, Retard et Avertissement foncées, texte ≥ 4,5 : 1 sur carte et sur sable.
+  - **Focus clavier** : contour or sur les fonds nuit (barre latérale, bandeaux), où le teal était invisible.
+  - **Titres de section** en `text-lg` ; `text-xs` (13 px) au lieu de `text-[13px]`.
+  - Reste à décider : onglets internes pour la page d'une caisse.

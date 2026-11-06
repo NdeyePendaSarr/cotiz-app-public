@@ -109,11 +109,12 @@
   --or: #e2a93b;
   --or-foreground: #1d1a10;
   /* Statuts d'une échéance */
-  --paye: #1e7f5c;
+  /* Foncés le 06/11/2026 : texte des pastilles ≥ 4,5 : 1 sur carte et sur sable. */
+  --paye: #17694b;
   --partiel: #3561a8;
   --attente: #6b604c;
-  --retard: #b9412b;
-  --avertissement: #a15c07;
+  --retard: #a3361f;
+  --avertissement: #8a4e05;
   /* Graphiques (lot 3) : canaux dans un ordre fixe, palette validée (daltonisme, contraste)
      sur la surface des cartes ; l'or a un contraste faible, d'où les valeurs toujours écrites. */
   --graph-wave: #00897a;
@@ -225,4 +226,12 @@
  */
 .dark .text-primary:not(.bg-primary-foreground) {
   color: var(--primary-texte);
+}
+
+/* Focus clavier sur les fonds nuit (barre latérale, bandeaux) : le contour teal y est invisible
+   (contraste 1,3), l'or ressort (5,9). Hors des couches CSS : passe devant les utilitaires. */
+.bg-nuit :focus-visible,
+.bg-nuit:focus-visible {
+  outline: 2px solid var(--or);
+  outline-offset: 2px;
 }

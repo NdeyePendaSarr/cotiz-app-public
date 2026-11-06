@@ -84,15 +84,15 @@ async function Accueil() {
           <Anneau
             segments={[{ libelle: "Reçu", valeur: recu, trait: "stroke-or" }]}
             total={Math.max(attendu, recu)}
-            libelle={`${pourcentage} % reçu sur les cycles en cours`}
+            libelle={`${pourcentage} % de l'attendu réparti sur les cycles en cours`}
             taille={128}
           >
             <span className="font-heading text-2xl font-bold">{pourcentage} %</span>
-            <span className="text-xs text-nuit-doux">reçu</span>
+            <span className="text-xs text-nuit-doux">réparti</span>
           </Anneau>
           <dl className="flex min-w-0 flex-col gap-3">
             <div>
-              <dt className="text-sm text-nuit-doux">Argent reçu</dt>
+              <dt className="text-sm text-nuit-doux">Réparti sur les cycles</dt>
               <dd className="font-heading text-2xl font-bold tracking-tight lg:text-3xl">{formaterFCFA(recu)}</dd>
               <dd className="text-sm text-nuit-doux">sur {formaterFCFA(attendu)}</dd>
             </div>
@@ -111,22 +111,7 @@ async function Accueil() {
         )}
       </EnTete>
 
-      <dl data-pleine-largeur className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl bg-border ring-1 ring-border lg:grid-cols-4">
-        {[
-          { libelle: "Reçu ces 7 jours", valeur: formaterFCFA(tendances.recu.actuelle), tendance: tendances.recu },
-          { libelle: "Moyenne par jour (7 j)", valeur: formaterFCFA(tendances.moyenne.actuelle), tendance: tendances.moyenne },
-          { libelle: "Reste à recevoir", valeur: formaterFCFA(Math.max(0, attendu - recu)), detail: `sur ${formaterFCFA(attendu)}` },
-          { libelle: "Cycles en cours", valeur: String(resumes.length), detail: `${collectes.length} collecte${collectes.length > 1 ? "s" : ""}` },
-        ].map((c) => (
-          <div key={c.libelle} className="bg-card px-4 py-3">
-            <dt className="text-sm text-muted-foreground">{c.libelle}</dt>
-            <dd className="font-heading text-lg font-bold whitespace-nowrap">{c.valeur}</dd>
-            {"tendance" in c && c.tendance ? <Evolution tendance={c.tendance} /> : <dd className="text-xs text-muted-foreground">{"detail" in c ? c.detail : null}</dd>}
-          </div>
-        ))}
-      </dl>
-
-      {/* Ordinateur : « À faire » en cartes côte à côte, cycles en grille (lot C). */}
+      {/* Juste sous le bandeau : ce qu'il y a à faire passe avant les chiffres à regarder (critique d'interface du 06/11/2026). */}
       <Section titre="À faire" pleineLargeur>
         {aFaire.length === 0 ? (
           <p className="text-muted-foreground">Rien en attente.</p>
@@ -163,6 +148,21 @@ async function Accueil() {
           </>
         )}
       </Section>
+
+      <dl data-pleine-largeur className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl bg-border ring-1 ring-border lg:grid-cols-3">
+        {[
+          { libelle: "Arrivé ces 7 jours", valeur: formaterFCFA(tendances.recu.actuelle), tendance: tendances.recu },
+          { libelle: "Moyenne par jour (7 j)", valeur: formaterFCFA(tendances.moyenne.actuelle), tendance: tendances.moyenne },
+          { libelle: "Cycles en cours", valeur: String(resumes.length), detail: `${collectes.length} collecte${collectes.length > 1 ? "s" : ""}` },
+        ].map((c) => (
+          <div key={c.libelle} className="bg-card px-4 py-3 last:col-span-2 lg:last:col-span-1">
+            <dt className="text-sm text-muted-foreground">{c.libelle}</dt>
+            <dd className="font-heading text-lg font-bold whitespace-nowrap">{c.valeur}</dd>
+            {"tendance" in c && c.tendance ? <Evolution tendance={c.tendance} /> : <dd className="text-xs text-muted-foreground">{"detail" in c ? c.detail : null}</dd>}
+          </div>
+        ))}
+      </dl>
+
 
       <div data-pleine-largeur className="grid gap-5 lg:grid-cols-[2fr_1fr] lg:gap-6">
         <Section titre="Reçu par jour" action={<span className="text-sm text-muted-foreground">{JOURS_GRAPHIQUE} derniers jours</span>}>
@@ -244,7 +244,7 @@ async function Accueil() {
                         <span className="text-sm text-muted-foreground"> / {formaterFCFA(c.r.attendu)}</span>
                       </span>
                       <span className="h-2 overflow-hidden rounded-full bg-muted">
-                        <span className="block h-full rounded-full bg-primary transition-[width] duration-700" style={{ width: `${pourcentage}%` }} />
+                        <span className="block h-full rounded-full bg-or transition-[width] duration-700" style={{ width: `${pourcentage}%` }} />
                       </span>
                       <span className={cn("text-xs font-medium", c.r.pasAJour === 0 ? "text-paye" : c.r.echeancePassee ? "text-retard" : "text-muted-foreground")}>
                         {c.r.pasAJour === 0
@@ -266,7 +266,7 @@ async function Accueil() {
                     </span>
                     <span className="h-1.5 overflow-hidden rounded-full bg-muted">
                       <span
-                        className="block h-full rounded-full bg-primary"
+                        className="block h-full rounded-full bg-or"
                         style={{ width: `${c.r.attendu > 0 ? Math.round((c.r.recu / c.r.attendu) * 100) : 0}%` }}
                       />
                     </span>

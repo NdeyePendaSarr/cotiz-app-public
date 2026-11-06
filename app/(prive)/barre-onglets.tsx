@@ -62,7 +62,7 @@ export function BarreOnglets({ aRapprocher }: { aRapprocher: number }) {
           {ONGLETS.map(({ href, libelle, Icone, ...o }) => {
             const estActif = actif(href);
             const classes = cn(
-              "relative flex h-14 w-full flex-col items-center justify-center gap-0.5 text-[13px] leading-tight font-semibold",
+              "relative flex h-14 w-full flex-col items-center justify-center gap-0.5 text-xs leading-tight font-semibold",
               estActif ? "text-primary" : "text-muted-foreground",
             );
             if ("principal" in o) {
@@ -89,7 +89,7 @@ export function BarreOnglets({ aRapprocher }: { aRapprocher: number }) {
                   <Icone aria-hidden className="size-6" strokeWidth={estActif ? 2.4 : 1.8} />
                   {libelle}
                   {href === "/rapprochement" && aRapprocher > 0 && (
-                    <span className="absolute top-1 left-1/2 ml-1.5 min-w-5 rounded-full bg-primary px-1 text-center text-[13px] leading-5 text-primary-foreground">
+                    <span className="absolute top-1 left-1/2 ml-1.5 min-w-5 rounded-full bg-primary px-1 text-center text-xs leading-5 text-primary-foreground">
                       {aRapprocher}
                     </span>
                   )}

@@ -19,7 +19,7 @@ export function Section({
   return (
     <section data-pleine-largeur={pleineLargeur || undefined} className={cn("flex flex-col gap-2", className)}>
       <div className="flex min-h-6 items-center justify-between gap-2">
-        <h2 className="font-heading text-base font-semibold">{titre}</h2>
+        <h2 className="font-heading text-lg font-semibold">{titre}</h2>
         {action}
       </div>
       {children}
