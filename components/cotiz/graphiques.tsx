@@ -120,17 +120,20 @@ export function Barres({
         <span>{debut}</span>
         <span className="font-medium text-foreground">{fin}</span>
       </figcaption>
-      <table className="sr-only">
-        <caption>{libelle}</caption>
-        <tbody>
-          {barres.map((b) => (
-            <tr key={b.cle}>
-              <th scope="row">{b.libelle}</th>
-              <td>{formaterFCFA(b.valeur)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {/* Masqué sur le bloc, pas sur le tableau : un <table> ignore la largeur de 1 px de sr-only et élargissait la page. */}
+      <div className="sr-only">
+        <table>
+          <caption>{libelle}</caption>
+          <tbody>
+            {barres.map((b) => (
+              <tr key={b.cle}>
+                <th scope="row">{b.libelle}</th>
+                <td>{formaterFCFA(b.valeur)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </figure>
   );
 }
@@ -230,20 +233,23 @@ export function Cascade({ etapes, libelle }: { etapes: Etape[]; libelle: string 
           </span>
         ))}
       </figcaption>
-      <table className="sr-only">
-        <caption>{libelle}</caption>
-        <tbody>
-          {etapes.map((e) => (
-            <tr key={e.libelle}>
-              <th scope="row">{e.libelle}</th>
-              <td>
-                {e.genre === "sortie" ? "moins " : e.genre === "don" ? "plus " : ""}
-                {formaterFCFA(e.valeur)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {/* Masqué sur le bloc, pas sur le tableau : un <table> ignore la largeur de 1 px de sr-only et élargissait la page. */}
+      <div className="sr-only">
+        <table>
+          <caption>{libelle}</caption>
+          <tbody>
+            {etapes.map((e) => (
+              <tr key={e.libelle}>
+                <th scope="row">{e.libelle}</th>
+                <td>
+                  {e.genre === "sortie" ? "moins " : e.genre === "don" ? "plus " : ""}
+                  {formaterFCFA(e.valeur)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </figure>
   );
 }
@@ -276,7 +282,7 @@ export function GrilleHistorique({
 }) {
   return (
     <figure className="flex flex-col gap-3">
-      <div className="overflow-x-auto">
+      <div className="relative overflow-x-auto">
         <table className="border-separate border-spacing-1 text-sm">
           <thead>
             <tr className="text-xs text-muted-foreground">
@@ -399,17 +405,20 @@ export function CourbeSolde({ points, libelle }: { points: { date: Date; solde: 
         {min < 0 && <span className="text-avertissement">pointillés : solde à zéro</span>}
         <span className="font-medium text-foreground">{formaterJourCourt(dernier.date)}</span>
       </figcaption>
-      <table className="sr-only">
-        <caption>{libelle}</caption>
-        <tbody>
-          {points.map((p) => (
-            <tr key={p.date.toISOString()}>
-              <th scope="row">{formaterJourCourt(p.date)}</th>
-              <td>{formaterFCFA(p.solde)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {/* Masqué sur le bloc, pas sur le tableau : un <table> ignore la largeur de 1 px de sr-only et élargissait la page. */}
+      <div className="sr-only">
+        <table>
+          <caption>{libelle}</caption>
+          <tbody>
+            {points.map((p) => (
+              <tr key={p.date.toISOString()}>
+                <th scope="row">{formaterJourCourt(p.date)}</th>
+                <td>{formaterFCFA(p.solde)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </figure>
   );
 }
@@ -431,7 +440,7 @@ export type LigneMois = { id: string; libelle: string; actif: boolean; etats: Et
 export function GrilleMois({ mois, lignes }: { mois: string[]; lignes: LigneMois[] }) {
   return (
     <figure className="flex flex-col gap-3">
-      <div className="overflow-x-auto">
+      <div className="relative overflow-x-auto">
         <table className="border-separate border-spacing-1 text-sm">
           <thead>
             <tr className="text-xs text-muted-foreground">

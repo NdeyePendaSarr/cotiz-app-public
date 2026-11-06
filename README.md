@@ -111,6 +111,7 @@ Ouvrir `http://<adresse du PC>:3000` (affichée par `npm run dev` sur la ligne `
 | `npm run db:migrate:prod` | Appliquer les migrations en **production** (lit `.env.prod`) |
 | `npm run db:sauvegarde` | Sauvegarder la **production** (lit `.env.prod`, Docker lancé) |
 | `npm run db:sauvegarde:verifier` | Restaurer la dernière sauvegarde dans une base locale temporaire et la contrôler |
+| `npm run demo:creer` / `demo:supprimer` | Compte de démonstration local aux données inventées (captures, [vidéo](docs/video-demo.md)) |
 | `npx prisma studio` | Explorer la base locale |
 
 ## Migrations

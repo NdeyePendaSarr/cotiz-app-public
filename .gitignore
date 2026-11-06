@@ -51,3 +51,6 @@ CLAUDE.md
 # sauvegardes de la base (jamais dans le dépôt)
 *.dump
 *-manifeste.json
+
+# démo locale (npm run demo:creer)
+/demo-sms.txt

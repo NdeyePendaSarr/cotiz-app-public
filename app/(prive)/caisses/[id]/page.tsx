@@ -256,7 +256,7 @@ async function DetailCaisse({
 
       {/* Onglets (audit, lot 1) : la liste des membres ne repousse plus dépenses et réglages tout en bas. */}
       <nav aria-label="Sections de la caisse" data-pleine-largeur className="sticky top-0 z-[5] -mx-4 bg-background/95 px-4 backdrop-blur lg:mx-0 lg:px-0">
-        <ul className="flex overflow-x-auto border-b border-border [scrollbar-width:none]">
+        <ul className="relative flex overflow-x-auto border-b border-border [scrollbar-width:none]">
           {vues.map((v) => (
             <li key={v.vue} className="shrink-0 lg:flex-1">
               <Link

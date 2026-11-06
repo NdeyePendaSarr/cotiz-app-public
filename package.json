@@ -17,7 +17,9 @@
     "db:seed": "prisma db seed",
     "db:migrate:prod": "node --env-file=.env.prod node_modules/prisma/build/index.js migrate deploy",
     "db:sauvegarde": "node --env-file=.env.prod scripts/sauvegarde-prod.mjs",
-    "db:sauvegarde:verifier": "node --env-file=.env scripts/verifier-sauvegarde.mjs"
+    "db:sauvegarde:verifier": "node --env-file=.env scripts/verifier-sauvegarde.mjs",
+    "demo:creer": "tsx --env-file=.env --conditions=react-server scripts/demo-locale.mts creer",
+    "demo:supprimer": "tsx --env-file=.env --conditions=react-server scripts/demo-locale.mts supprimer"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

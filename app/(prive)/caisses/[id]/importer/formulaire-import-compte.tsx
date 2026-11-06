@@ -111,7 +111,7 @@ export function FormulaireImportCompte({ action, caisseId }: { action: Action; c
               {apercu.sansCanal} ligne{apercu.sansCanal > 1 ? "s" : ""} sans canal : le canal choisi ci-dessus sera utilisé.
             </p>
           )}
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className={TABLEAU.table}>
               <thead className={TABLEAU.entete}>
                 <tr>
