@@ -71,6 +71,7 @@ export async function historiquePaiement(ownerId: string, id: string) {
     select: {
       ...CHAMPS_RESUME,
       statut: true,
+      datation: true,
       note: true,
       texteBrut: true,
       createdAt: true,

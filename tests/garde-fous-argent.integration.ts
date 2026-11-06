@@ -274,3 +274,44 @@ describe("cas rares", () => {
     expect((await prisma.paiement.findUniqueOrThrow({ where: { id: verse.id } })).datation).toBe("NON_DATEE");
   });
 });
+
+describe("corriger le canal d'un paiement", () => {
+  it("versé importé d'une collecte terminée : Wave → espèces, bonne volonté comprise, avec le journal", async () => {
+    const { corrigerCanalPaiement } = await import("@/app/actions/paiements");
+    const caisse = await prisma.caisse.create({ data: { ownerId, nom: "Séminaire terminé", type: "COLLECTE", montantCotisation: 2_000, dateLimite: new Date("2026-10-01") } });
+    await prisma.cycle.create({ data: { caisseId: caisse.id, numero: 1, dateDebut: new Date("2026-09-01"), dateEcheance: new Date("2026-10-01"), statut: "CLOTURE" } });
+    const verse = await reprise(3_000);
+    const don = await prisma.don.create({ data: { ownerId, caisseId: caisse.id, paiementId: verse.id, date: jour, montant: 1_000, donateur: "Awa Diallo", canal: "WAVE" } });
+
+    await corrigerCanalPaiement(verse.id, formulaire({ canal: "CASH" }));
+    expect(annonces.at(-1)).toBe("Canal corrigé : Wave → Cash ✓");
+    expect((await prisma.paiement.findUniqueOrThrow({ where: { id: verse.id } })).canal).toBe("CASH");
+    expect((await prisma.don.findUniqueOrThrow({ where: { id: don.id } })).canal).toBe("CASH");
+    const journal = await prisma.journalAudit.findMany({ where: { ownerId, entiteId: { in: [verse.id, don.id] }, details: { path: ["ancienCanal"], equals: "WAVE" } } });
+    expect(journal.map((j) => j.entite).sort()).toEqual(["Don", "Paiement"]);
+  });
+
+  it("refusé pour un SMS Wave collé et pour un canal invalide ; un autre compte ne trouve rien", async () => {
+    const { corrigerCanalPaiement } = await import("@/app/actions/paiements");
+    const sms = await prisma.paiement.create({ data: { ownerId, canal: "WAVE", source: "SMS_WAVE", montant: 1_234, dateReception: jour } });
+    await corrigerCanalPaiement(sms.id, formulaire({ canal: "CASH" }));
+    expect(annonces.at(-1)).toContain("SMS Wave");
+    await corrigerCanalPaiement(sms.id, formulaire({ canal: "CHEQUE" }));
+    expect(annonces.at(-1)).toBe("Choisis un canal.");
+
+    const verse = await reprise(1_500);
+    const autre = { id: randomUUID(), email: `autre-${randomUUID().slice(0, 8)}@cotiz.test`, nom: "Autre" };
+    await prisma.utilisatrice.create({ data: autre });
+    const moi = session.courante;
+    session.courante = autre;
+    try {
+      await corrigerCanalPaiement(verse.id, formulaire({ canal: "CASH" }));
+      expect(annonces.at(-1)).toBe("Paiement introuvable.");
+    } finally {
+      session.courante = moi;
+      await prisma.utilisatrice.delete({ where: { id: autre.id } });
+    }
+    expect((await prisma.paiement.findUniqueOrThrow({ where: { id: verse.id } })).canal).toBe("WAVE");
+    expect((await prisma.paiement.findUniqueOrThrow({ where: { id: sms.id } })).canal).toBe("WAVE");
+  });
+});

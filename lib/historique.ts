@@ -1,4 +1,4 @@
-import { formaterFCFA } from "@/lib/format";
+import { formaterFCFA, LIBELLES_CANAL } from "@/lib/format";
 
 // Traduit une ligne du journal d'audit en phrase lisible pour l'historique d'un paiement.
 // Logique pure (aucune base) : les clés de `details` sont celles écrites par les Server Actions.
@@ -19,6 +19,7 @@ function lire(details: unknown): Record<string, unknown> {
 }
 
 const montant = (v: unknown) => (typeof v === "number" ? formaterFCFA(v) : "");
+const canal = (v: string) => LIBELLES_CANAL[v as keyof typeof LIBELLES_CANAL] ?? v;
 
 /**
  * @param echeances libellé de chaque échéance (« Tontine Liberté, cycle 3 »), par id ;
@@ -48,6 +49,7 @@ export function decrireLigne(ligne: LigneJournal, echeances: ReadonlyMap<string,
       if (d.rapprochement) return typeof d.excedent === "number" && d.excedent > 0 ? `Rapproché, excédent de ${montant(d.excedent)}` : "Rapproché";
       if (d.annulationRapprochement) return "Rapprochement annulé : de nouveau à rapprocher";
       if (typeof d.rembourse === "number") return `Excédent remboursé : ${montant(d.rembourse)}`;
+      if (typeof d.canal === "string" && typeof d.ancienCanal === "string") return `Canal corrigé : ${canal(d.ancienCanal)} → ${canal(d.canal)}`;
       if (typeof d.statut === "string" && STATUTS[d.statut]) return STATUTS[d.statut];
     }
   }

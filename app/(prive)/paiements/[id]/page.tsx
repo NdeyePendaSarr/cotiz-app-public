@@ -5,11 +5,16 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { SqueletteListe } from "@/components/cotiz/squelette";
+import { corrigerCanalPaiement } from "@/app/actions/paiements";
 import { annulerRapprochement } from "@/app/actions/rapprochement";
+import { CLASSE_LISTE } from "@/components/cotiz/styles";
+import { Canal } from "@/lib/generated/prisma/enums";
+import { refusCorrectionCanal } from "@/lib/paiements/canal";
+import { cn } from "@/lib/utils";
 import { exigerUtilisatrice } from "@/lib/auth";
 import { historiquePaiement } from "@/lib/donnees/paiements";
 import { excedentPaiement } from "@/lib/dons";
-import { formaterDate, formaterDateHeure, formaterFCFA } from "@/lib/format";
+import { formaterDate, formaterDateHeure, formaterFCFA, LIBELLES_CANAL } from "@/lib/format";
 import { decrireLigne } from "@/lib/historique";
 import { schemaIdentifiant } from "@/lib/validation/caisse";
 import { CartePaiement } from "../../capture/carte-paiement";
@@ -100,6 +105,28 @@ async function DetailPaiement({ params }: { params: Promise<{ id: string }> }) {
             </form>
           )}
         </section>
+      )}
+
+      {/* Canal déclaré (liste importée, saisie manuelle) : corrigeable, même après la fin de la caisse. */}
+      {refusCorrectionCanal(p) === null && (
+        // key : après une correction, le formulaire repart du nouveau canal (sinon la liste garde l'ancien).
+        <form key={p.canal} action={corrigerCanalPaiement.bind(null, p.id)} className="flex flex-col gap-2">
+          <label htmlFor="canal" className="font-heading text-base font-semibold">
+            Corriger le canal
+          </label>
+          <div className="flex gap-2">
+            <select id="canal" name="canal" defaultValue={p.canal} className={cn(CLASSE_LISTE, "flex-1 text-base")}>
+              {Object.values(Canal).map((c) => (
+                <option key={c} value={c}>
+                  {LIBELLES_CANAL[c]}
+                </option>
+              ))}
+            </select>
+            <BoutonEnvoi variant="outline" className="h-11 text-base">
+              Enregistrer
+            </BoutonEnvoi>
+          </div>
+        </form>
       )}
 
       <section className="flex flex-col gap-2">
