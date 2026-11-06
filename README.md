@@ -18,6 +18,16 @@ Fonctionnalités de la v0 :
 
 La spécification complète, avec toutes les décisions, est dans [CAHIER_DES_CHARGES.md](CAHIER_DES_CHARGES.md).
 
+## Captures
+
+*Données de démonstration inventées, sur une copie locale de l'app.*
+
+| Accueil | Rapprochement du soir | Suivi d'une collecte | Mensualité |
+| --- | --- | --- | --- |
+| <img src="docs/captures/mobile-accueil.jpg" alt="Accueil" width="200"> | <img src="docs/captures/mobile-rapprochement.jpg" alt="Rapprochement" width="200"> | <img src="docs/captures/mobile-collecte.jpg" alt="Collecte" width="200"> | <img src="docs/captures/mobile-mensualite.jpg" alt="Mensualité" width="200"> |
+
+<img src="docs/captures/ordinateur-accueil.jpg" alt="Accueil sur ordinateur" width="49%"> <img src="docs/captures/ordinateur-tontine.jpg" alt="Tontine, cycle par cycle" width="49%">
+
 ## Stack
 
 - Next.js 16 (App Router, Turbopack, Server Actions, Cache Components), React 19, TypeScript strict

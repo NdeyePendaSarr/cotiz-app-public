@@ -7,6 +7,18 @@ She records every payment the moment it arrives, then reconciles everything in a
 
 Cotiz is in real use: the treasurer it was built with manages her groups with it, including a 70-member fundraiser.
 
+## Screenshots
+
+*Invented demo data, on a local copy of the app.*
+
+| Home | Evening reconciliation | Fundraiser follow-up | Monthly contributions |
+| --- | --- | --- | --- |
+| <img src="docs/captures/mobile-accueil.jpg" alt="Home: amount split on open cycles, to-do list, key figures" width="200"> | <img src="docs/captures/mobile-rapprochement.jpg" alt="Reconciliation: who paid and where the money goes" width="200"> | <img src="docs/captures/mobile-collecte.jpg" alt="Fundraiser: paid, partial and pending members, donations, balance" width="200"> | <img src="docs/captures/mobile-mensualite.jpg" alt="Monthly contributions: paid, late and upcoming months per member" width="200"> |
+
+On a computer, a sidebar replaces the bottom tab bar:
+
+<img src="docs/captures/ordinateur-accueil.jpg" alt="Home page on a computer" width="49%"> <img src="docs/captures/ordinateur-tontine.jpg" alt="Rotating tontine: who paid, cycle by cycle" width="49%">
+
 ## The problem
 
 Every member pays into the treasurer's single Wave account (Wave is the main mobile money service in Senegal), sometimes in cash or through Orange Money. Before Cotiz, she matched payment SMS messages to a Word table by hand. One payment can cover several groups or several months, members use different phone numbers, and the same money can easily be counted twice.
