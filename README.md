@@ -254,3 +254,7 @@ Définis dans [next.config.ts](next.config.ts) : `Content-Security-Policy` (prod
 | `prisma/` | Schéma, migrations, seed |
 | `scripts/` | Sauvegarde de la production et vérification |
 | `tests/` | Tests Vitest et fixtures (SMS et tableau Word au format réel, données inventées) |
+
+## Licence
+
+[MIT](LICENSE) © 2026 Ndeye Penda Sarr

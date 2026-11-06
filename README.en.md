@@ -106,3 +106,7 @@ Sign in with the demo account defined in `.env`. The seed refuses to run against
 ## Status
 
 Version 0 is in production and in daily use. Next steps, decided with the treasurer: run a full cycle without the paper notebook, then version 1 (starting with reading Orange Money SMS).
+
+## License
+
+[MIT](LICENSE) © 2026 Ndeye Penda Sarr
