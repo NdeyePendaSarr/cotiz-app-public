@@ -1,5 +1,7 @@
 # Cotiz
 
+*[English version](README.en.md)*
+
 Web app mobile-first pour une trésorière de tontines : capturer chaque paiement au moment où il arrive (SMS Wave collé, ou saisie manuelle pour Wave, Orange Money et cash), puis rapprocher le soir en quelques minutes, suivre qui a payé et relancer par WhatsApp.
 
 Tout arrive sur un seul compte Wave : un paiement est réparti sur une ou plusieurs échéances (plusieurs caisses, plusieurs cycles). Le système propose, la trésorière valide.
