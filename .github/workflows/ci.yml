@@ -31,8 +31,11 @@ jobs:
       - name: ESLint
         run: npm run lint
 
+      # PageProps et LayoutProps sont générés par Next dans .next/types, absent d'une machine neuve.
       - name: TypeScript
-        run: npx tsc --noEmit
+        run: |
+          npx next typegen
+          npx tsc --noEmit
 
       - name: Tests unitaires
         run: npm test
