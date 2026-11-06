@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Section } from "@/components/cotiz/section";
+import { NeufAChaqueVisite } from "@/components/cotiz/neuf-a-chaque-visite";
 import { BOUTON_EN_TETE, EnTete } from "@/components/cotiz/en-tete";
 import { PenLine } from "lucide-react";
 import Link from "next/link";
@@ -22,7 +23,9 @@ export default function PageCapture() {
           Saisie manuelle
         </Link>
       </EnTete>
-      <CaptureSms />
+      <NeufAChaqueVisite>
+        <CaptureSms />
+      </NeufAChaqueVisite>
       <Suspense fallback={null}>
         <Derniers />
       </Suspense>

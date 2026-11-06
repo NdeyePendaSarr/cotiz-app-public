@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { EnTete } from "@/components/cotiz/en-tete";
+import { NeufAChaqueVisite } from "@/components/cotiz/neuf-a-chaque-visite";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { traiterImport } from "@/app/actions/import";
@@ -39,7 +40,9 @@ async function Import({ params }: { params: Promise<{ id: string }> }) {
           Rien n&apos;est enregistré avant ta confirmation, après l&apos;aperçu. Un mouvement déjà dans Cotiz (même jour, même sens, même montant) n&apos;est
           jamais compté deux fois.
         </p>
-        <FormulaireImportCompte action={importerHistoriqueCompte.bind(null, caisse.id)} caisseId={caisse.id} />
+        <NeufAChaqueVisite>
+          <FormulaireImportCompte action={importerHistoriqueCompte.bind(null, caisse.id)} caisseId={caisse.id} />
+        </NeufAChaqueVisite>
       </>
     );
   }
@@ -48,7 +51,9 @@ async function Import({ params }: { params: Promise<{ id: string }> }) {
     <>
       <EnTete leger retour={{ href: `/caisses/${caisse.id}`, libelle: caisse.nom }} titre="Importer une liste" />
       <p className="text-muted-foreground">Rien n&apos;est enregistré avant ta confirmation, après l&apos;aperçu.</p>
-      <FormulaireImport action={traiterImport.bind(null, caisse.id)} caisseId={caisse.id} tontine={caisse.type === "TONTINE"} />
+      <NeufAChaqueVisite>
+        <FormulaireImport action={traiterImport.bind(null, caisse.id)} caisseId={caisse.id} tontine={caisse.type === "TONTINE"} />
+      </NeufAChaqueVisite>
     </>
   );
 }

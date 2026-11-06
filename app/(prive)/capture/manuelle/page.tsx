@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { EnTete } from "@/components/cotiz/en-tete";
+import { NeufAChaqueVisite } from "@/components/cotiz/neuf-a-chaque-visite";
 import { Suspense } from "react";
 import { saisirPaiement } from "@/app/actions/capture";
 import { SqueletteFormulaire } from "@/components/cotiz/squelette";
@@ -44,7 +45,9 @@ async function Saisie({ searchParams }: { searchParams: Promise<Record<string, s
           <pre className="text-sm whitespace-pre-wrap">{sms.texteBrut}</pre>
         </section>
       )}
-      <SaisieManuelle action={saisirPaiement.bind(null, sms?.id ?? null)} personnes={personnes} defauts={defauts} depuisSms={Boolean(sms)} />
+      <NeufAChaqueVisite>
+        <SaisieManuelle action={saisirPaiement.bind(null, sms?.id ?? null)} personnes={personnes} defauts={defauts} depuisSms={Boolean(sms)} />
+      </NeufAChaqueVisite>
     </>
   );
 }
