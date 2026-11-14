@@ -3,6 +3,7 @@ import { Minus, Plus } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { changerStatutCaisse } from "@/app/actions/caisses";
+import { changerStatutMembre } from "@/app/actions/membres";
 import { EnTete } from "@/components/cotiz/en-tete";
 import { CourbeSolde } from "@/components/cotiz/graphiques";
 import { Bloc, Section } from "@/components/cotiz/section";
@@ -14,8 +15,9 @@ import { formaterDate, formaterFCFA, LIBELLES_CANAL } from "@/lib/format";
 import { formaterTelephone } from "@/lib/telephone";
 import { cn } from "@/lib/utils";
 
-// Compte gardé (argent gardé pour une personne) : pas de cycle ni d'échéance, des versements et des
-// retraits, et un solde courant qui peut devenir négatif (avance faite au titulaire).
+// Compte gardé (argent gardé pour une personne ou une organisation) : pas de cycle ni d'échéance, des
+// versements et des retraits, et un solde courant qui peut devenir négatif (avance faite au titulaire).
+// Pour une organisation, les membres du compte sont ses contacts (au moins un actif).
 
 const RETOUR = { href: "/caisses", libelle: "Caisses" };
 
@@ -23,7 +25,10 @@ export async function CompteGarde({ ownerId, caisseId, vue, selecteur }: { owner
   const compte = await obtenirCompte(ownerId, caisseId);
   if (!compte) notFound();
   const archive = compte.statut === "ARCHIVEE";
-  const titulaire = compte.membres[0]?.personne ?? null;
+  const organisation = compte.organisation;
+  const titulaire = organisation ? null : (compte.membres[0]?.personne ?? null);
+  const pour = organisation ?? titulaire?.nomComplet;
+  const contactsActifs = compte.membres.filter((m) => m.statut === "ACTIF").length;
   const { verse, retire, solde, nombre } = soldeCompte(compte.mouvements);
   const courbe = courbeSolde(compte.mouvements);
   const onglet = vue === "caisse" ? "caisse" : "mouvements";
@@ -36,7 +41,7 @@ export async function CompteGarde({ ownerId, caisseId, vue, selecteur }: { owner
         action={selecteur}
         retour={RETOUR}
         titre={compte.nom}
-        surtitre={`Compte gardé${titulaire ? ` pour ${titulaire.nomComplet}` : ""}${archive ? " · archivé" : ""}`}
+        surtitre={`Compte gardé${pour ? ` pour ${pour}` : ""}${archive ? " · archivé" : ""}`}
         montant={formaterFCFA(solde)}
         chiffres={[
           { libelle: solde < 0 ? "Solde (avance)" : "Solde", valeur: formaterFCFA(solde), detail: "gardé aujourd'hui", accent: true, alerte: solde < 0 },
@@ -161,7 +166,9 @@ export async function CompteGarde({ ownerId, caisseId, vue, selecteur }: { owner
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 py-3 text-sm">
               <dt className="text-muted-foreground">Pour</dt>
               <dd className="text-right font-semibold">
-                {titulaire ? (
+                {organisation ? (
+                  organisation
+                ) : titulaire ? (
                   <Link href={`/personnes/${titulaire.id}`} className="text-primary">
                     {titulaire.nomComplet}
                   </Link>
@@ -178,8 +185,44 @@ export async function CompteGarde({ ownerId, caisseId, vue, selecteur }: { owner
               <dt className="text-muted-foreground">Ouvert le</dt>
               <dd className="text-right font-semibold">{formaterDate(compte.createdAt)}</dd>
             </dl>
+            {organisation && (
+              <div className="flex flex-col gap-1 border-t border-border py-3">
+                <h3 className="text-sm font-semibold">Contacts</h3>
+                <ul className="divide-y divide-border">
+                  {compte.membres.map((m) => (
+                    <li key={m.id} className="flex min-h-14 items-center justify-between gap-3 py-2">
+                      <span className="flex min-w-0 flex-col">
+                        <Link href={`/personnes/${m.personne.id}`} className="font-semibold text-primary">
+                          {m.personne.nomComplet}
+                        </Link>
+                        <span className="text-xs text-muted-foreground">
+                          {m.personne.numeros.map((n) => formaterTelephone(n.numero)).join(" · ") || "sans numéro"}
+                          {m.statut === "INACTIF" && " · retiré"}
+                        </span>
+                      </span>
+                      {!archive && (m.statut === "INACTIF" || contactsActifs > 1) && (
+                        <form action={changerStatutMembre}>
+                          <input type="hidden" name="membreId" value={m.id} />
+                          <input type="hidden" name="statut" value={m.statut === "ACTIF" ? "INACTIF" : "ACTIF"} />
+                          <BoutonEnvoi variant="outline" className="h-11 text-base">
+                            {m.statut === "ACTIF" ? "Retirer" : "Réactiver"}
+                          </BoutonEnvoi>
+                        </form>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                {!archive && (
+                  <Link href={`/caisses/${compte.id}/membres/ajouter`} className={cn(buttonVariants({ variant: "outline" }), "h-11 text-base")}>
+                    Ajouter un contact
+                  </Link>
+                )}
+              </div>
+            )}
             <p className="pb-3 text-sm text-muted-foreground">
-              Un SMS Wave reçu de son numéro peut être versé sur ce compte au moment du rapprochement.
+              {organisation
+                ? "Un SMS Wave reçu d'un de ses contacts peut être versé sur ce compte au moment du rapprochement."
+                : "Un SMS Wave reçu de son numéro peut être versé sur ce compte au moment du rapprochement."}
             </p>
             {!archive && (
               <Link href={`/caisses/${compte.id}/importer`} className={cn(buttonVariants({ variant: "outline" }), "mb-2 h-11 w-full text-base")}>

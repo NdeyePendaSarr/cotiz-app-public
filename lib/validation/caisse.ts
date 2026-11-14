@@ -68,12 +68,27 @@ const mensualite = z.object({
     .transform((t, ctx) => lireMois(t) ?? (ctx.addIssue({ code: "custom", message: "Choisis le premier mois." }), z.NEVER)),
 });
 
+/** Compte gardé pour une personne (son unique membre) ou pour une organisation (ses contacts). */
+export const POUR_QUI = ["PERSONNE", "ORGANISATION"] as const;
+
 // Compte gardé : un nom et un titulaire (choisi à la création, jamais changé ensuite) ; pas de montant.
-const compteGarde = z.object({
-  type: z.literal(TypeCaisse.COMPTE_GARDE),
-  nom,
-  titulaireId: z.uuid({ error: "Choisis la personne pour qui tu gardes l'argent." }).optional(),
-});
+// Pour une organisation : son nom (modifiable) et une première personne de contact (titulaireId).
+const compteGarde = z
+  .object({
+    type: z.literal(TypeCaisse.COMPTE_GARDE),
+    nom,
+    pourQui: z.enum(POUR_QUI, { error: "Choisis pour qui tu gardes l'argent." }).default("PERSONNE"),
+    organisation: z
+      .string()
+      .trim()
+      .max(100, { error: "100 caractères maximum." })
+      .optional()
+      .transform((v) => v || null),
+    titulaireId: z.uuid({ error: "Choisis la personne pour qui tu gardes l'argent." }).optional(),
+  })
+  .superRefine((c, ctx) => {
+    if (c.pourQui === "ORGANISATION" && !c.organisation) ctx.addIssue({ code: "custom", path: ["organisation"], message: "Indique le nom de l'organisation." });
+  });
 
 /** Saisie du formulaire de caisse (création et modification). */
 export const schemaCaisse = z.discriminatedUnion("type", [tontine, collecte, mensualite, compteGarde], {
@@ -84,8 +99,10 @@ export type DonneesCaisse = z.infer<typeof schemaCaisse>;
 
 /** Champs à écrire en base : les champs propres à l'autre type sont remis à null. */
 export function versChampsCaisse(c: DonneesCaisse) {
-  const aucun = { frequence: null, jourEcheance: null, dateLimite: null, moisDebut: null, nombreMois: null };
-  if (c.type === TypeCaisse.COMPTE_GARDE) return { ...aucun, nom: c.nom, montantCotisation: 0, modeleRelance: null, type: c.type };
+  const aucun = { frequence: null, jourEcheance: null, dateLimite: null, moisDebut: null, nombreMois: null, organisation: null };
+  if (c.type === TypeCaisse.COMPTE_GARDE) {
+    return { ...aucun, nom: c.nom, montantCotisation: 0, modeleRelance: null, type: c.type, organisation: c.pourQui === "ORGANISATION" ? c.organisation : null };
+  }
   if (c.type === TypeCaisse.MENSUALITE) {
     return {
       ...aucun,

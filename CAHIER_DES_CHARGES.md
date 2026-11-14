@@ -190,7 +190,7 @@ Le schéma sépare ce qui est dû (`Echeance`) de ce qui est reçu (`Paiement`),
 | Modèle (table) | Rôle | Points notables |
 | --- | --- | --- |
 | `Utilisatrice` (`utilisatrices`) | La trésorière | `id` = id Supabase Auth ; `nom` d'affichage modifiable |
-| `Caisse` (`caisses`) | Tontine ou collecte | `type`, `montantCotisation`, `frequence` + `jourEcheance` (tontine) ou `dateLimite` (collecte), `modeleRelance`, `statut` ACTIVE / ARCHIVEE |
+| `Caisse` (`caisses`) | Tontine ou collecte | `type`, `montantCotisation`, `frequence` + `jourEcheance` (tontine) ou `dateLimite` (collecte), `modeleRelance`, `organisation` (compte gardé pour une organisation, sinon null ; CHECK en base), `statut` ACTIVE / ARCHIVEE |
 | `Personne` (`personnes`) | Une personne, partagée entre caisses | `aliasWave[]`, `cellule` |
 | `NumeroPersonne` (`numeros_personne`) | Numéros d'une personne (9 chiffres) | Un numéro peut appartenir à 2 personnes |
 | `MembreCaisse` (`membres_caisse`) | Inscription d'une personne dans une caisse | `ordrePassage` unique par caisse, `statut` ACTIF / INACTIF |
@@ -237,7 +237,7 @@ Le schéma sépare ce qui est dû (`Echeance`) de ce qui est reçu (`Paiement`),
 | Type | Exemple | Fonctionnement |
 | --- | --- | --- |
 | `MENSUALITE` | Cotisation de la cellule, 500 FCFA par mois pendant 12 mois | Un seul cycle pour toute la durée, une échéance par membre = montant × nombre de mois. État de chaque mois, retard et avance calculés depuis le versé. Dépenses et bonnes volontés comme une collecte |
-| `COMPTE_GARDE` | Argent gardé pour un proche | Ni cycle ni échéance. Le titulaire est l'unique membre. Versements et retraits, solde courant (négatif permis) |
+| `COMPTE_GARDE` | Argent gardé pour un proche ou une organisation | Ni cycle ni échéance. Pour une personne : le titulaire est l'unique membre. Pour une organisation : son nom (`organisation`) et ses contacts (les membres, au moins un actif). Versements et retraits, solde courant (négatif permis) |
 | `TONTINE` | Caisse mensuelle avec ordre de passage | Cycles successifs, une échéance par membre et par cycle, un bénéficiaire par cycle (v1) |
 | `COLLECTE` | Participation à un séminaire, 5 000 FCFA par membre | Un seul cycle, créé automatiquement avec la caisse. Paiement en une fois, par tranches, ou partiel. Clôture à la date limite ou à la main |
 
@@ -577,3 +577,4 @@ Tu travailles avec une développeuse qui doit pouvoir expliquer chaque choix en 
   - **Titres de section** en `text-lg` ; `text-xs` (13 px) au lieu de `text-[13px]`.
   - Reste à décider : onglets internes pour la page d'une caisse.
 - **Mobile aéré (06/11/2026, demande de la trésorière)** : sur téléphone seulement, bandeau compact (montant un cran plus petit, anneau plus petit, « Changer de caisse » en icône à côté du titre), restant et dons d'une collecte sur une ligne sous le bandeau, onglets sur une ligne (libellés courts, nombre à part, défilement horizontal si besoin), cases de chiffres de l'accueil en libellés courts, plus d'espace entre les sections qu'entre les cartes. Rien en dessous de 13 px. L'ordinateur ne change pas.
+- **Compte gardé pour une organisation (14/11/2026, demande de la trésorière)** : à la création d'un compte gardé, « une personne » (comme avant) ou « une organisation » (association…). Une organisation a un nom (modifiable) et une ou plusieurs personnes de contact, choisies parmi les Personnes : elle n'est jamais une fiche Personne. On ajoute ou retire un contact depuis l'onglet « Compte » ; il reste toujours au moins un contact actif (revérifié sous verrou). Pour une personne ou pour une organisation : fixé à la création. Au rapprochement, un SMS d'un contact actif peut être versé sur le compte de l'organisation ; le paiement reste au nom du contact. Un contact retiré ne voit plus le compte. Le compte s'affiche « pour » l'organisation (liste des caisses, page du compte) ; la fiche du contact indique « contact de … ».

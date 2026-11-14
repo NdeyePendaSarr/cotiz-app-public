@@ -12,6 +12,7 @@ import { signalerErreur } from "@/lib/erreurs";
 import { StatutMembre } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import { schemaIdentifiant } from "@/lib/validation/caisse";
+import { verrouillerCaisse } from "@/lib/verrous";
 
 const schemaAjout = z.object({ caisseId: schemaIdentifiant, personneId: schemaIdentifiant });
 
@@ -40,11 +41,16 @@ async function inscrire(idCaisse: unknown, idPersonne: unknown) {
 
   // Les deux doivent appartenir à l'utilisatrice connectée.
   const [caisse, personne] = await Promise.all([
-    // Un compte gardé n'a qu'un membre, son titulaire, fixé à la création.
-    prisma.caisse.findFirst({ where: { id: caisseId, ownerId, statut: "ACTIVE", type: { not: "COMPTE_GARDE" } }, select: { type: true } }),
+    // Un compte gardé pour une personne n'a qu'un membre, son titulaire, fixé à la création.
+    // Pour une organisation, ses membres sont ses contacts : on peut en ajouter.
+    prisma.caisse.findFirst({
+      where: { id: caisseId, ownerId, statut: "ACTIVE", OR: [{ type: { not: "COMPTE_GARDE" } }, { organisation: { not: null } }] },
+      select: { type: true },
+    }),
     prisma.personne.count({ where: { id: personneId, ownerId } }),
   ]);
   if (!caisse || !personne) return;
+  const compte = caisse.type === "COMPTE_GARDE";
 
   await prisma.$transaction(async (tx) => {
     const existant = await tx.membreCaisse.findUnique({ where: { caisseId_personneId: { caisseId, personneId } } });
@@ -63,8 +69,9 @@ async function inscrire(idCaisse: unknown, idPersonne: unknown) {
     // Cycle ouvert : le nouveau membre doit cotiser tout de suite (cahier, phase 5).
     await assurerEcheanceMembre(tx, membre.id, caisseId);
   });
-  await annoncer("Membre ajouté ✓");
-  redirect(`/caisses/${caisseId}`);
+  // Contact d'une organisation : retour sur l'onglet du compte, où sont listés les contacts.
+  await annoncer(compte ? "Contact ajouté ✓" : "Membre ajouté ✓");
+  redirect(compte ? `/caisses/${caisseId}?vue=caisse` : `/caisses/${caisseId}`);
 }
 
 const schemaStatut = z.object({
@@ -83,19 +90,36 @@ export async function changerStatutMembre(formData: FormData) {
   if (!saisie.success) return;
 
   const { membreId, statut } = saisie.data;
-  // Le titulaire d'un compte gardé ne se retire pas : le compte resterait sans personne.
-  const membre = await prisma.membreCaisse.findFirst({ where: { id: membreId, caisse: { ownerId, type: { not: "COMPTE_GARDE" } } }, select: { caisseId: true } });
+  // Le titulaire d'un compte gardé pour une personne ne se retire pas : le compte resterait sans
+  // personne. Une organisation garde au moins un contact actif (revérifié sous verrou).
+  const membre = await prisma.membreCaisse.findFirst({
+    where: { id: membreId, caisse: { ownerId, OR: [{ type: { not: "COMPTE_GARDE" } }, { organisation: { not: null } }] } },
+    select: { caisseId: true, caisse: { select: { type: true } } },
+  });
   if (!membre) return;
+  const compte = membre.caisse.type === "COMPTE_GARDE";
 
-  await prisma.$transaction(async (tx) => {
+  const retire = await prisma.$transaction(async (tx) => {
+    if (compte && statut === StatutMembre.INACTIF) {
+      await verrouillerCaisse(tx, ownerId, membre.caisseId);
+      const autres = await tx.membreCaisse.count({ where: { caisseId: membre.caisseId, statut: StatutMembre.ACTIF, id: { not: membreId } } });
+      if (autres === 0) return false;
+    }
     // Écriture refiltrée par ownerId (via la caisse), en plus de la lecture ci-dessus (audit).
     await tx.membreCaisse.updateMany({ where: { id: membreId, caisse: { ownerId } }, data: { statut, ordrePassage: null } });
     // Échéance du cycle ouvert : retirée si rien n'y est payé ; recréée à la réactivation.
     const echeancesRetirees = statut === StatutMembre.INACTIF ? await retirerEcheanceMembre(tx, membreId) : 0;
     if (statut === StatutMembre.ACTIF) await assurerEcheanceMembre(tx, membreId, membre.caisseId);
     await journaliser(tx, { ownerId, entite: "MembreCaisse", entiteId: membreId, action: "MODIFICATION", details: { statut, echeancesRetirees } });
+    return true;
   });
-  await annoncer(statut === StatutMembre.INACTIF ? "Membre retiré" : "Membre réactivé ✓");
+  if (!retire) {
+    await annoncer("Une organisation garde au moins un contact : ajoute d'abord le nouveau contact.");
+  } else if (compte) {
+    await annoncer(statut === StatutMembre.INACTIF ? "Contact retiré" : "Contact réactivé ✓");
+  } else {
+    await annoncer(statut === StatutMembre.INACTIF ? "Membre retiré" : "Membre réactivé ✓");
+  }
   refresh();
 }
 

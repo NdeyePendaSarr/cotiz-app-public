@@ -43,16 +43,25 @@ async function Ajout({
   const { id: ownerId } = await exigerUtilisatrice();
   const idValide = schemaIdentifiant.safeParse(id);
   const caisse = idValide.success ? await obtenirCaisse(ownerId, idValide.data) : null;
-  if (!caisse || caisse.statut !== "ACTIVE" || caisse.type === "COMPTE_GARDE") notFound();
+  // Compte gardé : seulement pour une organisation, dont les membres sont les contacts.
+  if (!caisse || caisse.statut !== "ACTIVE" || (caisse.type === "COMPTE_GARDE" && caisse.organisation === null)) notFound();
+  const compte = caisse.type === "COMPTE_GARDE";
 
   const personnes = recherche ? rechercherPersonnes(await listerPersonnes(ownerId), recherche) : [];
   const statutDans = (p: (typeof personnes)[number]) => p.membres.find((m) => m.caisseId === caisse.id)?.statut;
 
   return (
     <>
-      <EnTete leger retour={{ href: `/caisses/${caisse.id}`, libelle: caisse.nom }} titre="Ajouter un membre" />
+      <EnTete
+        leger
+        retour={{ href: compte ? `/caisses/${caisse.id}?vue=caisse` : `/caisses/${caisse.id}`, libelle: caisse.nom }}
+        titre={compte ? "Ajouter un contact" : "Ajouter un membre"}
+        surtitre={compte ? caisse.organisation ?? undefined : undefined}
+      />
       <p className="text-muted-foreground">
-        Cherche d&apos;abord si la personne existe déjà (elle est peut-être dans une autre caisse).
+        {compte
+          ? "Une personne qui t'envoie l'argent de l'organisation. Cherche-la d'abord : elle existe peut-être déjà."
+          : "Cherche d'abord si la personne existe déjà (elle est peut-être dans une autre caisse)."}
       </p>
 
       <form role="search" className="flex gap-2">
@@ -84,13 +93,13 @@ async function Ajout({
                   </span>
                 </div>
                 {statut === "ACTIF" ? (
-                  <span className="shrink-0 text-sm text-muted-foreground">Déjà membre</span>
+                  <span className="shrink-0 text-sm text-muted-foreground">{compte ? "Déjà contact" : "Déjà membre"}</span>
                 ) : (
                   <form action={ajouterMembre}>
                     <input type="hidden" name="caisseId" value={caisse.id} />
                     <input type="hidden" name="personneId" value={p.id} />
                     <BoutonEnvoi className="h-11">
-                      {statut === "INACTIF" ? "Réactiver" : "Inscrire"}
+                      {statut === "INACTIF" ? "Réactiver" : compte ? "Ajouter" : "Inscrire"}
                     </BoutonEnvoi>
                   </form>
                 )}
@@ -104,7 +113,7 @@ async function Ajout({
       )}
 
       <Link
-        href={`/personnes/nouvelle?caisse=${caisse.id}`}
+        href={compte ? "/personnes/nouvelle" : `/personnes/nouvelle?caisse=${caisse.id}`}
         className={cn(buttonVariants({ variant: "outline" }), "h-11 text-base")}
       >
         Nouvelle personne

@@ -126,6 +126,9 @@ model Caisse {
   moisDebut         DateTime?    @map("mois_debut") @db.Date
   nombreMois        Int?         @map("nombre_mois")
   modeleRelance     String?      @map("modele_relance") // null = modèle par défaut du code
+  /// COMPTE_GARDE pour une organisation (association…) : son nom ; les membres sont ses contacts.
+  /// null = compte gardé pour une personne (son unique membre). Fixé à la création (vide ou non).
+  organisation      String?      @db.VarChar(100)
   statut            StatutCaisse @default(ACTIVE)
   createdAt         DateTime     @default(now()) @map("created_at")
 

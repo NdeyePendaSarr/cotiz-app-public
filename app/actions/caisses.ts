@@ -18,7 +18,7 @@ export type EtatFormulaireCaisse =
   | { erreur?: string; erreurs?: Record<string, string>; valeurs?: Record<string, string> }
   | undefined;
 
-const CHAMPS = ["type", "nom", "montantCotisation", "frequence", "jourEcheance", "dateLimite", "modeleRelance", "titulaireId", "nombreMois", "moisDebut"] as const;
+const CHAMPS = ["type", "nom", "montantCotisation", "frequence", "jourEcheance", "dateLimite", "modeleRelance", "titulaireId", "nombreMois", "moisDebut", "pourQui", "organisation"] as const;
 
 function lireFormulaire(formData: FormData) {
   const valeurs: Record<string, string> = {};
@@ -46,17 +46,21 @@ export async function creerCaisse(_etat: EtatFormulaireCaisse, formData: FormDat
   if (!saisie.success) return { erreurs: erreursParChamp(saisie.error), valeurs };
 
   const donnees = saisie.data;
-  // Compte gardé : son titulaire, une personne de l'utilisatrice (revérifiée ici).
+  // Compte gardé : son titulaire (ou, pour une organisation, sa première personne de contact),
+  // une personne de l'utilisatrice (revérifiée ici).
   let titulaireId: string | null = null;
   if (donnees.type === "COMPTE_GARDE") {
     const titulaire = donnees.titulaireId ? await prisma.personne.findFirst({ where: { id: donnees.titulaireId, ownerId }, select: { id: true } }) : null;
-    if (!titulaire) return { erreurs: { titulaireId: "Choisis la personne pour qui tu gardes l'argent." }, valeurs };
+    const message = donnees.pourQui === "ORGANISATION" ? "Choisis une personne de contact de l'organisation." : "Choisis la personne pour qui tu gardes l'argent.";
+    if (!titulaire) return { erreurs: { titulaireId: message }, valeurs };
     titulaireId = titulaire.id;
   }
   const caisse = await prisma.$transaction(async (tx) => {
     const creee = await tx.caisse.create({ data: { ownerId, ...versChampsCaisse(donnees) }, select: { id: true } });
-    await journaliser(tx, { ownerId, entite: "Caisse", entiteId: creee.id, action: "CREATION", details: { nom: donnees.nom, type: donnees.type } });
-    // Le titulaire est le seul membre d'un compte gardé (sans cycle ni échéance).
+    const organisation = donnees.type === "COMPTE_GARDE" ? versChampsCaisse(donnees).organisation : null;
+    await journaliser(tx, { ownerId, entite: "Caisse", entiteId: creee.id, action: "CREATION", details: { nom: donnees.nom, type: donnees.type, ...(organisation && { organisation }) } });
+    // Le titulaire est le seul membre d'un compte gardé (sans cycle ni échéance) ; pour une
+    // organisation, c'est son premier contact, d'autres peuvent s'ajouter ensuite.
     if (titulaireId) {
       const titulaire = await tx.membreCaisse.create({ data: { caisseId: creee.id, personneId: titulaireId }, select: { id: true } });
       await journaliser(tx, { ownerId, entite: "MembreCaisse", entiteId: titulaire.id, action: "CREATION", details: { caisseId: creee.id, personneId: titulaireId } });
@@ -94,10 +98,14 @@ export async function modifierCaisse(
   if (!saisie.success) return { erreurs: erreursParChamp(saisie.error), valeurs };
 
   // Lecture filtrée par ownerId : une caisse d'une autre utilisatrice est « introuvable ».
-  const existante = await prisma.caisse.findFirst({ where: { id: idValide.data, ownerId }, select: { type: true } });
+  const existante = await prisma.caisse.findFirst({ where: { id: idValide.data, ownerId }, select: { type: true, organisation: true } });
   if (!existante) return { erreur: "Caisse introuvable.", valeurs };
   if (existante.type !== saisie.data.type) {
     return { erreur: "Le type d'une caisse ne peut pas être changé après sa création.", valeurs };
+  }
+  // Compte gardé : pour une personne ou pour une organisation, fixé à la création (seul le nom change).
+  if (saisie.data.type === "COMPTE_GARDE" && (existante.organisation !== null) !== (saisie.data.pourQui === "ORGANISATION")) {
+    return { erreur: "Un compte gardé reste pour une personne ou pour une organisation, comme à sa création.", valeurs };
   }
 
   // Tontine : le nouveau montant ne vaut que pour les cycles futurs, les échéances existantes
@@ -151,7 +159,12 @@ export async function modifierCaisse(
       entite: "Caisse",
       entiteId: idValide.data,
       action: "MODIFICATION",
-      details: { nom: donnees.nom, montantCotisation: versChampsCaisse(donnees).montantCotisation, ...detailsRecalcul },
+      details: {
+        nom: donnees.nom,
+        montantCotisation: versChampsCaisse(donnees).montantCotisation,
+        ...(existante.organisation !== null && { organisation: versChampsCaisse(donnees).organisation }),
+        ...detailsRecalcul,
+      },
     });
     // Collecte : la date limite est l'échéance de son cycle ouvert.
     if (donnees.type === "COLLECTE") {

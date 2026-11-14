@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { JOURS_SEMAINE, LIBELLES_FREQUENCE, LIBELLES_TYPE } from "@/lib/format";
 import { Frequence, TypeCaisse } from "@/lib/generated/prisma/enums";
 import { BALISES_RELANCE, construireMessage, modeleParDefaut } from "@/lib/relance";
-import { FREQUENCES_PROPOSEES } from "@/lib/validation/caisse";
+import { FREQUENCES_PROPOSEES, POUR_QUI } from "@/lib/validation/caisse";
 import { cn } from "@/lib/utils";
 import { CLASSE_LISTE, CLASSE_ZONE_TEXTE } from "@/components/cotiz/styles";
 import { ChoixPersonne, type PersonneChoisissable } from "@/components/cotiz/choix-personne";
@@ -36,6 +36,7 @@ export function FormulaireCaisse({
 
   const [type, setType] = useState(valeurs.type ?? TypeCaisse.TONTINE);
   const [frequence, setFrequence] = useState(valeurs.frequence ?? Frequence.MENSUELLE);
+  const [pourQui, setPourQui] = useState<(typeof POUR_QUI)[number]>(valeurs.pourQui === "ORGANISATION" ? "ORGANISATION" : "PERSONNE");
   // Date limite déjà passée : acceptée (collecte déjà eue lieu), mais signalée.
   const [dateDepassee, setDateDepassee] = useState(() => estPassee(valeurs.dateLimite));
 
@@ -78,12 +79,53 @@ export function FormulaireCaisse({
 
       {type === TypeCaisse.COMPTE_GARDE ? (
         <>
+          {typeVerrouille ? (
+            // Pour une personne ou une organisation : fixé à la création, seul le nom de l'organisation change.
+            <input type="hidden" name="pourQui" value={pourQui} />
+          ) : (
+            <fieldset className="flex flex-col gap-2">
+              <legend className="mb-2 text-sm font-medium">Pour qui gardes-tu l&apos;argent ?</legend>
+              <div className="grid grid-cols-2 gap-2">
+                {POUR_QUI.map((p) => (
+                  <label
+                    key={p}
+                    className={cn(
+                      "flex min-h-11 cursor-pointer items-center justify-center rounded-lg border px-1 text-center text-sm leading-tight sm:text-base",
+                      pourQui === p && "border-primary bg-primary text-primary-foreground",
+                    )}
+                  >
+                    <input type="radio" name="pourQui" value={p} checked={pourQui === p} onChange={() => setPourQui(p)} className="sr-only" />
+                    {p === "PERSONNE" ? "Une personne" : "Une organisation"}
+                  </label>
+                ))}
+              </div>
+              <Erreur message={erreurs.pourQui} />
+            </fieldset>
+          )}
+          {pourQui === "ORGANISATION" && (
+            <Champ id="organisation" label="Nom de l'organisation" erreur={erreurs.organisation}>
+              <Input
+                id="organisation"
+                name="organisation"
+                defaultValue={valeurs.organisation}
+                placeholder="Association des femmes de Thiès"
+                aria-invalid={Boolean(erreurs.organisation)}
+                className="h-11 text-base"
+              />
+            </Champ>
+          )}
           {!typeVerrouille && (
             <div className="flex flex-col gap-2">
-              <p className="text-sm font-medium">Pour qui gardes-tu l&apos;argent ?</p>
-              <ChoixPersonne personnes={personnes} name="titulaireId" valeurInitiale={valeurs.titulaireId ?? null} libelle="Titulaire du compte" />
+              <ChoixPersonne
+                personnes={personnes}
+                name="titulaireId"
+                valeurInitiale={valeurs.titulaireId ?? null}
+                libelle={pourQui === "ORGANISATION" ? "Personne de contact" : "Titulaire du compte"}
+              />
               <p className="text-sm text-muted-foreground">
-                Ni montant ni échéance : tu notes ses versements et ce que tu lui rends, Cotiz tient le solde.
+                {pourQui === "ORGANISATION"
+                  ? "La personne qui t'envoie l'argent de l'organisation (présidente, trésorière…). Tu pourras ajouter d'autres contacts ensuite. Ni montant ni échéance : Cotiz tient le solde."
+                  : "Ni montant ni échéance : tu notes ses versements et ce que tu lui rends, Cotiz tient le solde."}
               </p>
               <Erreur message={erreurs.titulaireId} />
             </div>

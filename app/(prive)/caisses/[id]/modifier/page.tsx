@@ -40,6 +40,8 @@ async function Modification({ params }: { params: Promise<{ id: string }> }) {
     ...(caisse.modeleRelance && { modeleRelance: caisse.modeleRelance }),
     ...(caisse.nombreMois && { nombreMois: String(caisse.nombreMois) }),
     ...(caisse.moisDebut && { moisDebut: versChampDate(caisse.moisDebut).slice(0, 7) }),
+    ...(caisse.type === "COMPTE_GARDE" && { pourQui: caisse.organisation !== null ? "ORGANISATION" : "PERSONNE" }),
+    ...(caisse.organisation && { organisation: caisse.organisation }),
   };
 
   return (

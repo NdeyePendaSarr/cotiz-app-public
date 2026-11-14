@@ -108,8 +108,9 @@ async function FichePersonne({ params }: { params: Promise<{ id: string }> }) {
                     <span className="font-semibold">{m.caisse.nom}</span>
                     <span className="text-xs text-muted-foreground">
                       {LIBELLES_TYPE[m.caisse.type]}
+                      {m.caisse.organisation && ` · contact de ${m.caisse.organisation}`}
                       {m.ordrePassage !== null && ` · ordre ${m.ordrePassage}`}
-                      {m.statut === "INACTIF" && " · membre retiré"}
+                      {m.statut === "INACTIF" && (m.caisse.organisation ? " · contact retiré" : " · membre retiré")}
                       {m.caisse.statut === "ARCHIVEE" && " · caisse archivée"}
                     </span>
                     {statut && reste > 0 && <span className="text-sm font-bold text-retard">Reste {formaterFCFA(reste)}</span>}

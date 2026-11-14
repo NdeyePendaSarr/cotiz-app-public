@@ -81,7 +81,7 @@ describe("versChampsCaisse", () => {
   it("un compte gardé : un nom et un titulaire, ni montant, ni échéance, ni relance", () => {
     const titulaireId = "6f2c1f3e-8a7b-4c5d-9e0f-1a2b3c4d5e6f";
     const saisie = schemaCaisse.parse({ type: "COMPTE_GARDE", nom: "  Épargne de Modou  ", titulaireId, montantCotisation: "999" });
-    expect(saisie).toEqual({ type: "COMPTE_GARDE", nom: "Épargne de Modou", titulaireId });
+    expect(saisie).toEqual({ type: "COMPTE_GARDE", nom: "Épargne de Modou", titulaireId, pourQui: "PERSONNE", organisation: null });
     expect(versChampsCaisse(saisie)).toEqual({
       nom: "Épargne de Modou",
       montantCotisation: 0,
@@ -92,8 +92,22 @@ describe("versChampsCaisse", () => {
       dateLimite: null,
       moisDebut: null,
       nombreMois: null,
+      organisation: null,
     });
     expect(schemaCaisse.safeParse({ type: "COMPTE_GARDE", nom: "X", titulaireId: "pas-un-id" }).success).toBe(false);
+  });
+
+  it("un compte gardé pour une organisation : son nom est obligatoire, ignoré pour une personne", () => {
+    const titulaireId = "3f0c7a52-1d2e-4b8a-9c3d-2e5f6a7b8c9d";
+    const saisie = { type: "COMPTE_GARDE", nom: "Épargne de l'association", pourQui: "ORGANISATION", organisation: "  Association des femmes de Thiès  ", titulaireId };
+    expect(versChampsCaisse(schemaCaisse.parse(saisie))).toMatchObject({ type: "COMPTE_GARDE", montantCotisation: 0, organisation: "Association des femmes de Thiès" });
+    expect(premiereErreur({ ...saisie, organisation: "   " })?.champ).toBe("organisation");
+    expect(premiereErreur({ ...saisie, organisation: "x".repeat(101) })?.champ).toBe("organisation");
+    expect(premiereErreur({ ...saisie, pourQui: "AUTRE" })?.champ).toBe("pourQui");
+    // Pour une personne, un nom d'organisation envoyé quand même n'est jamais écrit.
+    expect(versChampsCaisse(schemaCaisse.parse({ ...saisie, pourQui: "PERSONNE" })).organisation).toBeNull();
+    // Les autres types n'ont jamais d'organisation.
+    expect(versChampsCaisse(schemaCaisse.parse({ ...collecte, organisation: "Asso" })).organisation).toBeNull();
   });
 
   it("une mensualité : montant par mois, nombre de mois, premier mois ; date limite = fin du dernier mois", () => {

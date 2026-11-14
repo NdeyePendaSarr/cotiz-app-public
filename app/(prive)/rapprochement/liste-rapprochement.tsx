@@ -449,7 +449,7 @@ function CarteRapprochement({
 
       {personne && comptes.length > 0 && compteId && (
         <section className="flex flex-col gap-2 rounded-xl bg-secondary/60 p-3">
-          <h3 className="text-sm font-semibold">Ou verser sur son compte gardé</h3>
+          <h3 className="text-sm font-semibold">Ou verser sur un compte gardé</h3>
           <p className="text-xs text-muted-foreground">Tout le paiement ({formaterFCFA(paiement.montant)}) devient un versement sur le compte, pas une cotisation.</p>
           {comptes.length > 1 && (
             <select value={compteId} onChange={(e) => setCompteChoisi(e.target.value)} aria-label="Compte gardé" className={CLASSE_LISTE}>

@@ -220,7 +220,7 @@ describe("comptes gardés : parcours de A", () => {
     const aRembourserAvant = await lecturesSuivi.compterARembourser(A);
     // Le compte doit être celui de la personne choisie.
     expect(await rapprochement.verserSurCompte(a.paiement.id, undefined, formulaire({ personneId: a.autre.id, compteId: a.compte.id }))).toMatchObject({
-      erreur: "Ce compte n'est pas celui de cette personne.",
+      erreur: "Ce compte n'est pas celui de cette personne (ni d'une organisation dont elle est contact).",
     });
 
     expect(await rapprochement.verserSurCompte(a.paiement.id, undefined, formulaire({ personneId: a.frere.id, compteId: a.compte.id }))).toBeUndefined();
@@ -268,5 +268,81 @@ describe("comptes gardés : parcours de A", () => {
     // Réimport du même tableau : plus rien à importer.
     const encore = await comptes.importerHistoriqueCompte(a.compte.id, undefined, formulaire({ texte, canal: "CASH", intention: "analyser" }));
     expect(encore?.apercu?.aImporter).toBe(0);
+  });
+});
+
+describe("comptes gardés pour une organisation", () => {
+  const ASSO = "Association des femmes de Thiès";
+
+  it("création : un nom d'organisation et une première personne de contact, tous deux obligatoires", async () => {
+    const base = { type: "COMPTE_GARDE", nom: "Épargne de l'association", pourQui: "ORGANISATION" };
+    expect(await sansRedirection(caisses.creerCaisse(undefined, formulaire({ ...base, organisation: " ", titulaireId: a.frere.id })))).toMatchObject({ erreurs: { organisation: expect.any(String) } });
+    expect(await sansRedirection(caisses.creerCaisse(undefined, formulaire({ ...base, organisation: ASSO })))).toMatchObject({ erreurs: { titulaireId: "Choisis une personne de contact de l'organisation." } });
+    // Contact d'une autre trésorière : refusé.
+    expect(await sansRedirection(caisses.creerCaisse(undefined, formulaire({ ...base, organisation: ASSO, titulaireId: b.frere.id })))).toMatchObject({ erreurs: { titulaireId: expect.any(String) } });
+
+    await expect(caisses.creerCaisse(undefined, formulaire({ ...base, organisation: ASSO, titulaireId: a.frere.id }))).rejects.toThrow(/^REDIRECT \/caisses\//);
+    const cree = await prisma.caisse.findFirstOrThrow({ where: { ownerId: a.utilisatrice.id, organisation: ASSO }, include: { membres: true, cycles: true } });
+    expect(cree).toMatchObject({ type: "COMPTE_GARDE", montantCotisation: 0, cycles: [] });
+    expect(cree.membres.map((m) => m.personneId)).toEqual([a.frere.id]);
+    expect((await lectures.resumesComptes(a.utilisatrice.id)).get(cree.id)?.titulaire).toBe(ASSO);
+  });
+
+  it("contacts : on en ajoute, on en retire, mais il en reste toujours un", async () => {
+    const compte = await prisma.caisse.findFirstOrThrow({ where: { ownerId: a.utilisatrice.id, organisation: ASSO } });
+    const contacts = () => prisma.membreCaisse.findMany({ where: { caisseId: compte.id }, orderBy: { dateEntree: "asc" }, select: { id: true, personneId: true, statut: true } });
+
+    await expect(membres.ajouterMembre(formulaire({ caisseId: compte.id, personneId: a.autre.id }))).rejects.toThrow(`REDIRECT /caisses/${compte.id}?vue=caisse`);
+    // Une personne de B ne devient jamais contact.
+    await sansRedirection(membres.ajouterMembre(formulaire({ caisseId: compte.id, personneId: b.autre.id })));
+    expect((await contacts()).map((c) => c.personneId).sort()).toEqual([a.frere.id, a.autre.id].sort());
+    // Chaque contact actif voit le compte au rapprochement, avec le nom de l'organisation.
+    const parPersonne = await lectures.comptesParPersonne(a.utilisatrice.id);
+    expect(parPersonne[a.autre.id]).toContainEqual({ id: compte.id, nom: `${compte.nom} (${ASSO})` });
+
+    const frere = (await contacts()).find((c) => c.personneId === a.frere.id)!;
+    const autre = (await contacts()).find((c) => c.personneId === a.autre.id)!;
+    await membres.changerStatutMembre(formulaire({ membreId: frere.id, statut: "INACTIF" }));
+    // Dernier contact actif : refusé.
+    await membres.changerStatutMembre(formulaire({ membreId: autre.id, statut: "INACTIF" }));
+    expect(await contacts()).toEqual(expect.arrayContaining([
+      { id: frere.id, personneId: a.frere.id, statut: "INACTIF" },
+      { id: autre.id, personneId: a.autre.id, statut: "ACTIF" },
+    ]));
+    // Un contact retiré ne voit plus le compte.
+    expect((await lectures.comptesParPersonne(a.utilisatrice.id))[a.frere.id]?.map((c) => c.id) ?? []).not.toContain(compte.id);
+  });
+
+  it("rapprochement : un contact actif verse pour l'organisation ; un contact retiré, non", async () => {
+    const A = a.utilisatrice.id;
+    const compte = await prisma.caisse.findFirstOrThrow({ where: { ownerId: A, organisation: ASSO } });
+    const paiement = await prisma.paiement.create({
+      data: { ownerId: A, canal: "WAVE", source: "SMS_WAVE", montant: 15_000, telephoneExpediteur: "770000000", reference: `T_${randomUUID()}`, dateReception: new Date(Date.now() - JOUR) },
+    });
+    expect(await rapprochement.verserSurCompte(paiement.id, undefined, formulaire({ personneId: a.frere.id, compteId: compte.id }))).toHaveProperty("erreur");
+    expect(await rapprochement.verserSurCompte(paiement.id, undefined, formulaire({ personneId: a.autre.id, compteId: compte.id }))).toBeUndefined();
+    const verse = await prisma.paiement.findUniqueOrThrow({ where: { id: paiement.id }, include: { mouvementCompte: true } });
+    // Le paiement reste au nom du contact ; l'argent va sur le compte de l'organisation.
+    expect(verse).toMatchObject({ statut: "RAPPROCHE", personneId: a.autre.id });
+    expect(verse.mouvementCompte).toMatchObject({ caisseId: compte.id, montant: 15_000, sens: "VERSEMENT" });
+  });
+
+  it("modification : le nom de l'organisation change ; personne et organisation ne s'échangent pas", async () => {
+    const A = a.utilisatrice.id;
+    const compte = await prisma.caisse.findFirstOrThrow({ where: { ownerId: A, organisation: ASSO } });
+    const champs = { type: "COMPTE_GARDE", nom: compte.nom };
+    expect(await sansRedirection(caisses.modifierCaisse(compte.id, undefined, formulaire({ ...champs, pourQui: "PERSONNE" })))).toMatchObject({ erreur: expect.stringMatching(/comme à sa création/) });
+    expect(await sansRedirection(caisses.modifierCaisse(a.compte.id, undefined, formulaire({ type: "COMPTE_GARDE", nom: a.compte.nom, pourQui: "ORGANISATION", organisation: "Asso" })))).toMatchObject({
+      erreur: expect.stringMatching(/comme à sa création/),
+    });
+    await expect(caisses.modifierCaisse(compte.id, undefined, formulaire({ ...champs, pourQui: "ORGANISATION", organisation: "AFT Thiès" }))).rejects.toThrow(/^REDIRECT/);
+    expect(await prisma.caisse.findUniqueOrThrow({ where: { id: compte.id }, select: { organisation: true } })).toEqual({ organisation: "AFT Thiès" });
+    expect(await prisma.caisse.findUniqueOrThrow({ where: { id: a.compte.id }, select: { organisation: true } })).toEqual({ organisation: null });
+  });
+
+  it("la base refuse une organisation sur une autre caisse qu'un compte gardé, ou un nom vide", async () => {
+    const A = a.utilisatrice.id;
+    await expect(prisma.caisse.create({ data: { ownerId: A, nom: "Tontine", type: "TONTINE", montantCotisation: 1_000, organisation: "Asso" } })).rejects.toThrow();
+    await expect(prisma.caisse.create({ data: { ownerId: A, nom: "Vide", type: "COMPTE_GARDE", montantCotisation: 0, organisation: "  " } })).rejects.toThrow();
   });
 });

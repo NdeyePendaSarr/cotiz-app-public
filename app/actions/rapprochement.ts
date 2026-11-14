@@ -166,8 +166,9 @@ export async function validerSurs(formData: FormData) {
 
 /**
  * Verse tout un paiement sur le compte gardé de la personne (argent qu'elle confie, pas une
- * cotisation) : paiement rapproché à cette personne, un versement créé sur son compte, journalisés
- * ensemble. Revérifié ici : paiement à rapprocher, compte actif dont la personne est titulaire.
+ * cotisation) : paiement rapproché à cette personne, un versement créé sur son compte (ou celui de
+ * l'organisation dont elle est contact), journalisés ensemble. Revérifié ici : paiement à
+ * rapprocher, compte actif dont la personne est titulaire ou contact actif.
  */
 export async function verserSurCompte(paiementId: string, _etat: EtatRapprochement, formData: FormData): Promise<EtatRapprochement> {
   const { id: ownerId } = await exigerUtilisatrice();
@@ -184,10 +185,10 @@ export async function verserSurCompte(paiementId: string, _etat: EtatRapprocheme
       const paiement = await tx.paiement.findFirst({ where: { id: idPaiement.data, ownerId, statut: "A_RAPPROCHER" }, select: { id: true, montant: true, canal: true, dateReception: true } });
       if (!paiement) throw new RefusRapprochement("Ce paiement a déjà été traité.");
       const compte = await tx.caisse.findFirst({
-        where: { id: idCompte.data, ownerId, type: "COMPTE_GARDE", statut: "ACTIVE", membres: { some: { personneId: idPersonne.data } } },
+        where: { id: idCompte.data, ownerId, type: "COMPTE_GARDE", statut: "ACTIVE", membres: { some: { personneId: idPersonne.data, statut: "ACTIF" } } },
         select: { id: true, nom: true },
       });
-      if (!compte) throw new RefusRapprochement("Ce compte n'est pas celui de cette personne.");
+      if (!compte) throw new RefusRapprochement("Ce compte n'est pas celui de cette personne (ni d'une organisation dont elle est contact).");
 
       const { count } = await tx.paiement.updateMany({
         where: { id: paiement.id, ownerId, statut: "A_RAPPROCHER" },
