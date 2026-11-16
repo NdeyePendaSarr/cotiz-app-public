@@ -68,7 +68,7 @@ export function parserSmsWave(texte: string): ResultatParsing {
 function lire(texte: string): ResultatParsing {
   if (typeof texte !== "string") return { ok: false, raison: "Le texte est vide." };
 
-  const lignes = normaliser(retirerLigneSolde(texte));
+  const lignes = normaliser(remettreALaLigne(retirerLigneSolde(texte)));
   if (lignes.length === 0) return { ok: false, raison: "Le texte est vide." };
   const sms = lignes.join("\n");
 
@@ -92,6 +92,21 @@ function lire(texte: string): ResultatParsing {
   if (reference === null) champsManquants.push("reference");
 
   return { ok: true, montant, nomExpediteur: nom, telephoneExpediteur: telephone, dateReception, reference, champsManquants };
+}
+
+// Espace horizontale (espace, tabulation, insécable…), jamais un retour à la ligne.
+const H = "[^\\S\\r\\n]+";
+const AVANT_EXPEDITEUR = new RegExp(`(re[cç]u (?:\\d{1,3}(?:\\.\\d{3})+|\\d+) ?F)${H}(?=De )`, "gi");
+const AVANT_DATE = new RegExp(`${H}(?=\\d{2}\\/\\d{2}\\/\\d{4} (?:à|a) \\d)`, "gi");
+const AVANT_REFERENCE = new RegExp(`(\\d{1,2}h\\d{2})${H}(?=[A-Z0-9]{17}(?![A-Za-z0-9]))`, "g");
+
+/**
+ * SMS collé d'un seul bloc (« Vous avez recu 2.000F De Awa (78…) 23/09/2026 à 13h55 UB3… ») : remis
+ * sur ses lignes habituelles (expéditeur, date, référence) pour être lu comme un SMS ordinaire.
+ * Sans effet sur un SMS déjà à la ligne. Le solde est retiré avant (retirerLigneSolde).
+ */
+function remettreALaLigne(texte: string): string {
+  return texte.replace(AVANT_EXPEDITEUR, "$1\n").replace(AVANT_DATE, "\n").replace(AVANT_REFERENCE, "$1\n");
 }
 
 /** Une ligne propre par ligne de texte : espaces réduits, lignes vides retirées. */

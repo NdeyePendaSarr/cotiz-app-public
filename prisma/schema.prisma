@@ -272,6 +272,8 @@ model Paiement {
   @@unique([ownerId, canal, reference]) // anti-doublon (NULL autorisé plusieurs fois)
   @@index([ownerId, statut])
   @@index([ownerId, origine])
+  /// Accueil (reçus des 7 derniers jours) et détection de doublons à la capture (audit du 16/11/2026).
+  @@index([ownerId, dateReception])
   @@index([personneId])
   @@map("paiements")
 }
@@ -301,6 +303,9 @@ model JournalAudit {
   owner Utilisatrice @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
   @@index([ownerId, entite, entiteId])
+  /// Recherche par préfixe (« <paiementId>:… », journal d'un paiement) : la base est en collation
+  /// en_US.UTF-8, où un LIKE n'utilise un index qu'avec text_pattern_ops (audit du 16/11/2026).
+  @@index([ownerId, entite, entiteId(ops: raw("text_pattern_ops"))], map: "journal_audit_entite_id_prefixe_idx")
   @@map("journal_audit")
 }
 

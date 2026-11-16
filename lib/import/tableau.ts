@@ -187,7 +187,8 @@ export function extraireLignes(tableau: Tableau, detection: Detection): { lues: 
  * au-dessus du plafond → null.
  */
 export function lireVerse(texte: string): number | null {
-  const t = texte.replace(/s/g, "").replace(/f(cfa)?$/i, "");
+  // Espaces retirées d'abord (« 2 000 F CFA » → « 2000FCFA »), puis l'unité finale.
+  const t = texte.replace(/\s/g, "").replace(/f(cfa)?$/i, "");
   if (t === "" || t === "-") return 0;
   const chiffres = chiffresFcfa(t);
   if (chiffres === null) return null;

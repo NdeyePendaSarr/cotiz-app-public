@@ -13,7 +13,7 @@ import { Canal, type TypeCaisse } from "@/lib/generated/prisma/enums";
 import { avecDepenses } from "@/lib/depenses";
 import { montantDuParMembre } from "@/lib/mensualite";
 import { prisma } from "@/lib/prisma";
-import { verrouillerEcheance } from "@/lib/verrous";
+import { verrouillerEcheance, verrouillerEcheancesDeCaisse } from "@/lib/verrous";
 import { REPRISE } from "@/lib/paiements/origine";
 import { schemaIdentifiant } from "@/lib/validation/caisse";
 
@@ -146,6 +146,10 @@ export async function traiterImport(caisseId: string, _etat: EtatImport, formDat
   try {
     await prisma.$transaction(
       async (tx) => {
+        // Toutes les échéances de la caisse d'un coup, dans l'ordre des id (audit du 16/11/2026) :
+        // l'import ne les verrouille plus une à une dans l'ordre des lignes, ce qui pouvait bloquer
+        // en boucle avec une validation de rapprochement.
+        await verrouillerEcheancesDeCaisse(tx, ownerId, caisse.id);
         for (const l of aImporter) {
           if (l.statut === "reactivation" && l.personneId) {
             const reactive = await tx.membreCaisse.update({

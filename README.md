@@ -11,7 +11,7 @@ Fonctionnalités de la v0 :
 - **Capture** : SMS Wave collé (solde retiré avant tout), saisie manuelle, anti-doublon, SMS illisibles gardés à part.
 - **Rapprochement** : personne et répartition proposées, paiements « sûrs » validés d'un coup, annulation possible.
 - **Caisses** : tontines (cycles, ordre de passage, historique), collectes et mensualités (dépenses, bonnes volontés ; mois par mois, retards et avances pour une mensualité), statuts, relances WhatsApp, récap, clôture.
-- **Comptes gardés** : argent gardé pour une personne, versements et retraits, solde courant, import de l'historique.
+- **Comptes gardés** : argent gardé pour une personne ou pour une organisation (association : son nom et ses personnes de contact, dont les SMS se versent sur son compte), versements et retraits, solde courant, import de l'historique.
 - **Import** d'une liste collée depuis Word (cellule, déjà versé, canal), puis datation des versés repris (SMS, modèles Wave et Orange Money).
 - **Accueil** : argent reçu, à faire, reçu par jour, répartition par canal.
 - **Journal d'audit** de chaque mutation d'argent.

@@ -124,6 +124,20 @@ describe("formats à tolérer", () => {
   ])("[F] numéro avec %s → 9 chiffres", (_cas, texte) => {
     expect(lu(texte).telephoneExpediteur).toBe("771234567");
   });
+
+  // Audit du 16/11/2026 : collé d'un bloc, le SMS perdait le nom et le numéro (identification ratée).
+  it("[F] SMS collé sur une seule ligne : nom, numéro et référence lus, solde jamais gardé", () => {
+    const texte = "Vous avez recu 2.000F De Awa Diop (78 111 22 33) 23/09/2026 à 13h55 Nouveau solde: 40.100F UB3LD64CZ8BF8CIT1";
+    const r = lu(texte);
+    expect(r).toMatchObject({ montant: 2000, nomExpediteur: "Awa Diop", telephoneExpediteur: "781112233", reference: "UB3LD64CZ8BF8CIT1", champsManquants: [] });
+    expect(r.dateReception.toISOString()).toBe("2026-09-23T13:55:00.000Z");
+    expect(JSON.stringify(r)).not.toMatch(/40[.,]?100/);
+  });
+
+  it("[F] une seule ligne sans numéro : le nom s'arrête avant la date", () => {
+    const r = lu("Vous avez recu 2.000F De Awa Diop 23/09/2026 à 13h55 UB3LD64CZ8BF8CIT1");
+    expect(r).toMatchObject({ nomExpediteur: "Awa Diop", telephoneExpediteur: null });
+  });
 });
 
 describe("champs facultatifs manquants : ok: true, champ à null", () => {

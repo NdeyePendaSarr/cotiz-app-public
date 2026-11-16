@@ -48,7 +48,10 @@ export async function verrouillerEcheancesDePersonne(tx: Tx, ownerId: string, pe
     JOIN membres_caisse m ON m.id = e.membre_caisse_id
     JOIN caisses c ON c.id = m.caisse_id
     WHERE m.personne_id = ${personneId}::uuid AND c.owner_id = ${ownerId}::uuid
+    ORDER BY e.id
     FOR UPDATE OF e`;
+  // ORDER BY e.id (audit du 16/11/2026) : toutes les prises de verrous d'échéances suivent le même
+  // ordre, comme verrouillerEcheancesDeCaisse ; deux transactions ne peuvent plus s'attendre en boucle.
 }
 
 /** Verrouille une caisse de l'utilisatrice (import de l'historique d'un compte : un seul à la fois). */

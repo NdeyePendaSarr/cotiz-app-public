@@ -29,7 +29,7 @@ Cotiz models this explicitly: a **Payment** is split into **Allocations** across
 
 - **Capture in seconds**: paste a Wave SMS, or enter a payment by hand (Wave without SMS, Orange Money, cash). Duplicates are detected; unreadable SMS are kept aside instead of being lost. The account balance in the SMS is stripped before anything is parsed or stored.
 - **Evening reconciliation**: the person and the split are proposed; payments with nothing to decide (known phone number, exact amount) can be confirmed in one tap. A reconciliation can be undone.
-- **Four kinds of groups**: rotating tontines (cycles, payout order, history), one-off fundraisers (expenses, extra donations), monthly contributions (month-by-month status, late or ahead), and money kept on someone's behalf (deposits, withdrawals, running balance).
+- **Four kinds of groups**: rotating tontines (cycles, payout order, history), one-off fundraisers (expenses, extra donations), monthly contributions (month-by-month status, late or ahead), and money kept on behalf of a person or an organisation such as an association (deposits, withdrawals, running balance; an organisation has contact people whose payments go to its account).
 - **Import from Word or Excel**: paste the existing member list, preview every line, nothing is written before confirmation; amounts already paid become reconciled payments, without ever counting them twice on a re-import.
 - **Follow-up**: paid / partial / pending per member, totals per sub-group, WhatsApp reminders with a pre-filled message, a summary to paste in the group chat.
 - **Audit log** of every change to money, readable on each payment's page.

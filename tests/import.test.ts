@@ -189,6 +189,10 @@ describe("lireVerse", () => {
     ["1.250.000", 1250000],
     ["5000.00 FCFA", 5000],
     ["10.000.000", 10_000_000],
+    // Audit du 16/11/2026 : « F CFA » avec une espace était lu comme illisible.
+    ["2 000 F CFA", 2000],
+    ["2000 F CFA", 2000],
+    ["2 000 f cfa", 2000],
   ])("« %s » → %s", (texte, attendu) => expect(lireVerse(texte)).toBe(attendu));
 
   it.each(["deux mille", "2,5", "oui", "1.5", "12.50", "5000.000", "99999999"])("« %s » est illisible ou trop élevé", (texte) => expect(lireVerse(texte)).toBeNull());

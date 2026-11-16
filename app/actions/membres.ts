@@ -185,19 +185,23 @@ export async function echangerOrdres(_etat: EtatEchange, formData: FormData): Pr
   if (!saisie.success) return { erreur: saisie.error.issues[0].message };
   const { caisseId, membreA, membreB } = saisie.data;
 
-  const membres = await prisma.membreCaisse.findMany({
-    where: { id: { in: [membreA, membreB] }, caisseId, caisse: { ownerId, type: "TONTINE" } },
-    select: { id: true, ordrePassage: true, personne: { select: { nomComplet: true } } },
+  // Lecture et écriture sous verrou de la caisse (audit du 16/11/2026) : un autre changement d'ordre
+  // en même temps ne peut plus faire écrire des valeurs périmées. Hors journal d'audit (cahier).
+  const noms = await prisma.$transaction(async (tx) => {
+    await verrouillerCaisse(tx, ownerId, caisseId);
+    const membres = await tx.membreCaisse.findMany({
+      where: { id: { in: [membreA, membreB] }, caisseId, caisse: { ownerId, type: "TONTINE" } },
+      select: { id: true, ordrePassage: true, personne: { select: { nomComplet: true } } },
+    });
+    const a = membres.find((m) => m.id === membreA);
+    const b = membres.find((m) => m.id === membreB);
+    if (!a || !b) return null;
+    await tx.membreCaisse.update({ where: { id: a.id }, data: { ordrePassage: null } });
+    await tx.membreCaisse.update({ where: { id: b.id }, data: { ordrePassage: a.ordrePassage } });
+    await tx.membreCaisse.update({ where: { id: a.id }, data: { ordrePassage: b.ordrePassage } });
+    return [a.personne.nomComplet, b.personne.nomComplet] as const;
   });
-  const a = membres.find((m) => m.id === membreA);
-  const b = membres.find((m) => m.id === membreB);
-  if (!a || !b) return { erreur: "Membres introuvables dans cette tontine." };
-
-  await prisma.$transaction([
-    prisma.membreCaisse.update({ where: { id: a.id }, data: { ordrePassage: null } }),
-    prisma.membreCaisse.update({ where: { id: b.id }, data: { ordrePassage: a.ordrePassage } }),
-    prisma.membreCaisse.update({ where: { id: a.id }, data: { ordrePassage: b.ordrePassage } }),
-  ]);
+  if (!noms) return { erreur: "Membres introuvables dans cette tontine." };
   refresh();
-  return { succes: `${a.personne.nomComplet} et ${b.personne.nomComplet} ont échangé leur ordre de passage.` };
+  return { succes: `${noms[0]} et ${noms[1]} ont échangé leur ordre de passage.` };
 }
